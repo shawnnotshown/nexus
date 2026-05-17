@@ -154,9 +154,8 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     const dueDateIso = newTaskDeadline ? new Date(`${newTaskDeadline}T23:59:59`).toISOString() : undefined;
     void extras.createTodoItem(listId, newTaskTitle.trim(), assignees, dueDateIso);
     setNewTaskTitle("");
-    setNewTaskAssigneeId("");
     setNewTaskDeadline("");
-    setIsAddingTask(false);
+    setIsAddingTask(true);
   };
 
   const handleDeleteTodoTask = (taskId: string) => {
@@ -491,7 +490,6 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                     )}
                     <button 
                       onClick={() => {
-                        setNewTaskAssigneeId("");
                         setNewTaskDeadline("");
                         setIsAddingTask(true);
                       }}
@@ -598,6 +596,15 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                           className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
                         />
                       </div>
+                      {currentUser.id && !newTaskAssigneeId ? (
+                        <button
+                          type="button"
+                          onClick={() => setNewTaskAssigneeId(currentUser.id)}
+                          className="text-left text-xs font-bold text-indigo-600 hover:text-indigo-800"
+                        >
+                          Assign to me
+                        </button>
+                      ) : null}
                       {newTaskAssigneeId ? (
                         <p className="text-[11px] font-medium text-indigo-800 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2">
                           That person will see this task on their <span className="font-bold">My Tasks</span> page.

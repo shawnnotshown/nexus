@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useAppContext } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useMyAssignedProjectTodoItems } from "../hooks/useMyAssignedProjectTodoItems";
 import { CheckSquare, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { collectUserIdentityIds, isUserAmongAssignees } from "../lib/firestoreMappers";
 import type { ProjectTodoItem, Task, TaskStatus } from "../types";
 
 type KanbanRow = { kind: "kanban"; task: Task };
@@ -21,20 +23,33 @@ export type MyTasksRowFocus =
 export const MyTasks: React.FC<{
   rowFocus?: MyTasksRowFocus | null;
   onRowFocusConsumed?: () => void;
-}> = ({ rowFocus = null, onRowFocusConsumed }) => {
-  const { currentUser, tasks, projects, deleteTask } = useAppContext();
+  /** Ensures the project you just left is still queried (before the projects list updates). */
+  extraProjectIds?: string[];
+}> = ({ rowFocus = null, onRowFocusConsumed, extraProjectIds = [] }) => {
+  const { currentUser, tasks, projects, users, deleteTask } = useAppContext();
+  const { user } = useAuth();
   const { workspaceId } = useWorkspace();
-  const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
+  const projectIds = useMemo(() => {
+    const merged = new Set(projects.map((p) => p.id));
+    for (const id of extraProjectIds) {
+      if (id) merged.add(id);
+    }
+    return Array.from(merged);
+  }, [projects, extraProjectIds]);
+  const identityIds = useMemo(
+    () => collectUserIdentityIds(currentUser.id, user?.uid ?? null, users, currentUser.email),
+    [currentUser.id, currentUser.email, user?.uid, users]
+  );
   const { assignedTodoRows, deleteProjectTodoItem } = useMyAssignedProjectTodoItems(
     workspaceId,
-    currentUser.id,
+    identityIds,
     projectIds
   );
   const [filter, setFilter] = useState<"all" | TaskStatus>("all");
 
   const myKanbanTasks = useMemo(
-    () => tasks.filter((t) => t.assignees.includes(currentUser.id)),
-    [tasks, currentUser.id]
+    () => tasks.filter((t) => identityIds.some((id) => isUserAmongAssignees(t.assignees, id))),
+    [tasks, identityIds]
   );
 
   const myTaskRows: MyTaskRow[] = useMemo(() => {
@@ -53,7 +68,9 @@ export const MyTasks: React.FC<{
       if (row.kind === "kanban") return row.task.status === filter;
       const st = todoItemAsStatus(row.item);
       if (filter === "done") return st === "done";
-      if (filter === "todo") return st === "todo";
+      if (filter === "todo" || filter === "in-progress" || filter === "review") {
+        return st === "todo";
+      }
       return false;
     });
   }, [myTaskRows, filter]);
@@ -89,7 +106,8 @@ export const MyTasks: React.FC<{
       <div>
         <h1 className="text-3xl font-black text-indigo-900 tracking-tight">My Tasks</h1>
         <p className="text-slate-500 mt-1 font-medium">
-          Kanban tasks and project list items assigned to you across all projects.
+          {myKanbanTasks.length} board task{myKanbanTasks.length === 1 ? "" : "s"} ·{" "}
+          {assignedTodoRows.length} list task{assignedTodoRows.length === 1 ? "" : "s"} assigned to you.
         </p>
       </div>
 
@@ -117,7 +135,7 @@ export const MyTasks: React.FC<{
             <p className="text-slate-500">You're all caught up! Great job.</p>
           </div>
         ) : (
-          filteredRows.map((row) => {
+          filteredRows.map((row, index) => {
             if (row.kind === "kanban") {
               const { task } = row;
               const project = projects.find((p) => p.id === task.projectId);
@@ -177,7 +195,7 @@ export const MyTasks: React.FC<{
             const status = todoItemAsStatus(item);
             return (
               <div
-                key={`t-${projectId}-${item.id}`}
+                key={`t-${projectId}-${item.id}-${index}`}
                 id={`my-task-t-${projectId}-${item.id}`}
                 className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
               >

@@ -3,64 +3,81 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { collection, deleteDoc, doc, onSnapshot } from "firebase/firestore";
 import { getFirebaseDb } from "../lib/firebase";
-import { projectTodoItemFromFirestore } from "../lib/firestoreMappers";
+import {
+  isAssignedToAnyIdentity,
+  projectTodoItemFromFirestore,
+} from "../lib/firestoreMappers";
 import type { ProjectTodoItem } from "../types";
 
 export type AssignedProjectTodoRow = { projectId: string; item: ProjectTodoItem };
 
+function sortRows(rows: AssignedProjectTodoRow[]): AssignedProjectTodoRow[] {
+  return [...rows].sort((a, b) => a.item.title.localeCompare(b.item.title));
+}
+
 /**
- * Live project To-Do items (todoItems subcollection) assigned to userId, across all given projects.
- * Workspace Kanban tasks live in a separate collection; this hook covers the lists inside Project Detail.
+ * Live project To-Do items (todoItems subcollection) assigned to the current user.
+ * Listens per project (same paths as Project Detail) — compatible with existing Firestore rules.
  */
 export function useMyAssignedProjectTodoItems(
   workspaceId: string | null,
-  userId: string,
-  projectIds: string[]
+  identityIds: string[],
+  projectIds: string[] = []
 ) {
   const db = getFirebaseDb();
-  const projectIdsKey = useMemo(() => JSON.stringify([...projectIds].sort()), [projectIds]);
+  const identityKey = useMemo(
+    () => [...new Set(identityIds.map((id) => id.trim()).filter(Boolean))].sort().join("\u0001"),
+    [identityIds]
+  );
+  const projectIdsKey = useMemo(
+    () => [...new Set(projectIds.filter(Boolean))].sort().join("\u0001"),
+    [projectIds]
+  );
+  const ids = useMemo(
+    () => (projectIdsKey.length > 0 ? projectIdsKey.split("\u0001") : []),
+    [projectIdsKey]
+  );
 
-  const [assignedTodoRows, setAssignedTodoRows] = useState<AssignedProjectTodoRow[]>([]);
+  const [rowsByProject, setRowsByProject] = useState<Record<string, AssignedProjectTodoRow[]>>({});
 
   useEffect(() => {
-    if (!db || !workspaceId || !userId) {
-      setAssignedTodoRows([]);
+    if (!db || !workspaceId || identityKey.length === 0 || ids.length === 0) {
+      setRowsByProject({});
       return;
     }
 
-    let ids: string[] = [];
-    try {
-      ids = JSON.parse(projectIdsKey) as string[];
-    } catch {
-      ids = [];
-    }
-    if (ids.length === 0) {
-      setAssignedTodoRows([]);
-      return;
-    }
+    let cancelled = false;
+    const uidList = identityKey.split("\u0001");
+    const matchesUser = (assignees: string[]) => isAssignedToAnyIdentity(assignees, uidList);
 
-    const merged = new Map<string, AssignedProjectTodoRow>();
+    setRowsByProject({});
 
-    const publish = () => {
-      setAssignedTodoRows(Array.from(merged.values()).filter((r) => r.item.assignees.includes(userId)));
-    };
-
-    const unsubs = ids.map((pid) => {
-      const col = collection(db, "workspaces", workspaceId, "projects", pid, "todoItems");
+    const unsubs = ids.map((projectId) => {
+      const col = collection(db, "workspaces", workspaceId, "projects", projectId, "todoItems");
       return onSnapshot(col, (snap) => {
-        for (const [k, v] of merged) {
-          if (v.projectId === pid) merged.delete(k);
-        }
+        if (cancelled) return;
+
+        const rows: AssignedProjectTodoRow[] = [];
         snap.forEach((d) => {
           const item = projectTodoItemFromFirestore(d.id, d.data() as Record<string, unknown>);
-          merged.set(`${pid}:${item.id}`, { projectId: pid, item });
+          if (matchesUser(item.assignees)) {
+            rows.push({ projectId, item });
+          }
         });
-        publish();
+        setRowsByProject((prev) => ({ ...prev, [projectId]: rows }));
       });
     });
 
-    return () => unsubs.forEach((u) => u());
-  }, [db, workspaceId, userId, projectIdsKey]);
+    return () => {
+      cancelled = true;
+      unsubs.forEach((u) => u());
+    };
+  }, [db, workspaceId, identityKey, projectIdsKey, ids]);
+
+  const assignedTodoRows = useMemo(() => {
+    const merged = ids.flatMap((projectId) => rowsByProject[projectId] ?? []);
+    return sortRows(merged);
+  }, [ids, rowsByProject]);
 
   const deleteProjectTodoItem = useCallback(
     async (projectId: string, itemId: string) => {

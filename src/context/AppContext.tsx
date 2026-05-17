@@ -26,7 +26,7 @@ import {
   deleteDoc,
   type DocumentData,
 } from "firebase/firestore";
-import { getFirebaseAuth, getFirebaseDb } from "../lib/firebase";
+import { getFirebaseDb } from "../lib/firebase";
 import { useAuth } from "./AuthContext";
 import { useWorkspace } from "./WorkspaceContext";
 import type { User, Project, Task, Message, Priority, TaskStatus } from "../types";
@@ -94,31 +94,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         const list: User[] = [];
         snap.forEach((d) => {
           const raw = d.data() as Record<string, unknown>;
-          const authUser = getFirebaseAuth()?.currentUser;
-          if (authUser?.uid && d.id === authUser.uid) {
-            // #region agent log
-            const memberPhotoLen = typeof raw.photoURL === "string" ? raw.photoURL.length : 0;
-            const authPhotoLen = authUser.photoURL?.length ?? 0;
-            fetch("http://127.0.0.1:7579/ingest/4f42ae25-44e1-4657-ac03-8a09374de9e2", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "db79da" },
-              body: JSON.stringify({
-                sessionId: "db79da",
-                location: "AppContext.tsx:membersSnapshot",
-                message: "current user member doc vs Auth photoURL",
-                data: {
-                  hypothesisId: "H-A-H-B",
-                  memberPhotoLen,
-                  authPhotoLen,
-                  photoURLFieldType: typeof raw.photoURL,
-                  relevantKeys: Object.keys(raw).filter((k) => /photo|avatar|picture|image/i.test(k)),
-                  firestoreEmptyButAuthHas: memberPhotoLen === 0 && authPhotoLen > 0,
-                },
-                timestamp: Date.now(),
-              }),
-            }).catch(() => {});
-            // #endregion
-          }
           list.push(memberDocToUser(d.id, raw));
         });
         setUsers(list);
@@ -162,30 +137,6 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     return () => unsubs.forEach((u) => u());
   }, [db, workspaceId]);
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    const member = users.find((m) => m.id === user.uid);
-    // #region agent log
-    fetch("http://127.0.0.1:7579/ingest/4f42ae25-44e1-4657-ac03-8a09374de9e2", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Debug-Session-Id": "db79da" },
-      body: JSON.stringify({
-        sessionId: "db79da",
-        location: "AppContext.tsx:currentUserResolution",
-        message: "currentUser branch and avatar lengths",
-        data: {
-          hypothesisId: "H-C-H-D",
-          branch: member ? "memberDoc" : "authFallback",
-          memberAvatarLen: member?.avatar?.length ?? 0,
-          authPhotoLen: user.photoURL?.length ?? 0,
-          usersCount: users.length,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => {});
-    // #endregion
-  }, [user, users]);
 
   const currentUser = useMemo((): User => {
     const u = user;

@@ -54,7 +54,11 @@ function LayoutShell() {
         return <Chat />;
       case "my-tasks":
         return (
-          <MyTasks rowFocus={myTasksRowFocus} onRowFocusConsumed={clearMyTasksRowFocus} />
+          <MyTasks
+            rowFocus={myTasksRowFocus}
+            onRowFocusConsumed={clearMyTasksRowFocus}
+            extraProjectIds={activeProjectId ? [activeProjectId] : []}
+          />
         );
       case "calendar":
         return <Calendar />;

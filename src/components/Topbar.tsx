@@ -7,6 +7,7 @@ import { useAppContext } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useMyAssignedProjectTodoItems } from "../hooks/useMyAssignedProjectTodoItems";
+import { collectUserIdentityIds, isUserAmongAssignees } from "../lib/firestoreMappers";
 import type { ProjectTodoItem, Task } from "../types";
 import type { MyTasksRowFocus } from "../views/MyTasks";
 
@@ -29,9 +30,9 @@ function startOfDueDay(iso: string | undefined): Date | null {
 }
 
 export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTasks }) => {
-  const { currentUser, tasks, projects } = useAppContext();
+  const { currentUser, tasks, projects, users } = useAppContext();
   const { workspaceId } = useWorkspace();
-  const { signOut } = useAuth();
+  const { signOut, user: authUser } = useAuth();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
@@ -44,11 +45,15 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
     return m;
   }, [projects]);
 
-  const { assignedTodoRows } = useMyAssignedProjectTodoItems(workspaceId, currentUser.id, projectIds);
+  const identityIds = useMemo(
+    () => collectUserIdentityIds(currentUser.id, authUser?.uid ?? null, users, currentUser.email),
+    [currentUser.id, currentUser.email, authUser?.uid, users]
+  );
+  const { assignedTodoRows } = useMyAssignedProjectTodoItems(workspaceId, identityIds, projectIds);
 
   const myKanbanTasks = useMemo(
-    () => tasks.filter((t) => t.assignees.includes(currentUser.id)),
-    [tasks, currentUser.id]
+    () => tasks.filter((t) => identityIds.some((id) => isUserAmongAssignees(t.assignees, id))),
+    [tasks, identityIds]
   );
 
   const notificationRows = useMemo((): NotifRow[] => {

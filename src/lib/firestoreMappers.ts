@@ -26,6 +26,60 @@ export function toIso(value: unknown): string {
   return new Date().toISOString();
 }
 
+/** Coerce Firestore assignees field (array, legacy string, map, or empty) to user id strings. */
+export function normalizeAssignees(raw: unknown): string[] {
+  if (Array.isArray(raw)) {
+    return raw
+      .map((entry) => {
+        if (typeof entry === "string") return entry.trim();
+        if (entry && typeof entry === "object" && "id" in entry) {
+          const id = (entry as { id?: unknown }).id;
+          return typeof id === "string" ? id.trim() : "";
+        }
+        return "";
+      })
+      .filter((id) => id.length > 0);
+  }
+  if (typeof raw === "string" && raw.trim().length > 0) return [raw.trim()];
+  if (raw && typeof raw === "object") {
+    return Object.values(raw as Record<string, unknown>)
+      .map((v) => (typeof v === "string" ? v.trim() : ""))
+      .filter((id) => id.length > 0);
+  }
+  return [];
+}
+
+export function isUserAmongAssignees(assignees: string[], userId: string): boolean {
+  if (!userId) return false;
+  const target = userId.trim();
+  return assignees.some((id) => id.trim() === target);
+}
+
+/** All member doc ids that may refer to the signed-in user (uid + same-email aliases). */
+export function collectUserIdentityIds(
+  userId: string,
+  authUid: string | null | undefined,
+  users: { id: string; email?: string | null }[],
+  currentUserEmail?: string | null
+): string[] {
+  const ids = new Set<string>();
+  if (userId.trim()) ids.add(userId.trim());
+  if (authUid?.trim()) ids.add(authUid.trim());
+  const email = currentUserEmail?.trim().toLowerCase();
+  if (email) {
+    for (const u of users) {
+      if (u.email?.trim().toLowerCase() === email) ids.add(u.id.trim());
+    }
+  }
+  return Array.from(ids);
+}
+
+export function isAssignedToAnyIdentity(assignees: string[], identityIds: string[]): boolean {
+  if (identityIds.length === 0) return false;
+  const targets = new Set(identityIds.map((id) => id.trim()).filter(Boolean));
+  return assignees.some((id) => targets.has(id.trim()));
+}
+
 export function memberDocToUser(uid: string, data: Record<string, unknown>): User {
   const badgesRaw = Array.isArray(data.badges) ? data.badges : [];
   const badges: Badge[] = badgesRaw.map((b: Record<string, unknown>) => ({
@@ -89,7 +143,7 @@ export function taskFromFirestore(id: string, data: Record<string, unknown>): Ta
   }));
 
   const deps = Array.isArray(data.dependencies) ? (data.dependencies as string[]) : [];
-  const assignees = Array.isArray(data.assignees) ? (data.assignees as string[]) : [];
+  const assignees = normalizeAssignees(data.assignees);
 
   return {
     id,
@@ -127,7 +181,10 @@ export function projectTodoItemFromFirestore(id: string, data: Record<string, un
     content: String(c.content ?? ""),
     createdAt: toIso(c.createdAt),
   }));
-  const assignees = Array.isArray(data.assignees) ? (data.assignees as string[]) : [];
+  let assignees = normalizeAssignees(data.assignees);
+  if (assignees.length === 0) {
+    assignees = normalizeAssignees(data.assignee);
+  }
   return {
     id,
     listId: String(data.listId ?? ""),

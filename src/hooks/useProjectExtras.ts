@@ -22,7 +22,7 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage
 import { getFirebaseDb, getFirebaseStorage } from "../lib/firebase";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useAuth } from "../context/AuthContext";
-import { projectTodoItemFromFirestore, toIso } from "../lib/firestoreMappers";
+import { normalizeAssignees, projectTodoItemFromFirestore, toIso } from "../lib/firestoreMappers";
 import type {
   Comment,
   ProjectBoardComment,
@@ -216,7 +216,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
         title: title.trim(),
         description: "",
         completed: false,
-        assignees,
+        assignees: normalizeAssignees(assignees),
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         comments: [],
         createdAt: serverTimestamp(),
@@ -266,7 +266,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
     async (itemId: string, updates: { assignees?: string[]; dueDate?: string | null }) => {
       if (!db || !workspaceId || !projectId) return;
       const payload: Record<string, unknown> = {};
-      if ("assignees" in updates) payload.assignees = updates.assignees ?? [];
+      if ("assignees" in updates) payload.assignees = normalizeAssignees(updates.assignees ?? []);
       if ("dueDate" in updates) payload.dueDate = updates.dueDate ?? null;
       if (Object.keys(payload).length === 0) return;
       await updateDoc(

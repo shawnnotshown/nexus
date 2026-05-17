@@ -1,6 +1,8 @@
 import React, { useMemo } from "react";
 import { useAppContext } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { collectUserIdentityIds, isUserAmongAssignees } from "../lib/firestoreMappers";
 import { useProjectTodoCountsByProject } from "../hooks/useProjectTodoCountsByProject";
 import { WorkProgressBar } from "../components/WorkProgressBar";
 import { combinedWorkProgressPercent, kanbanProgressStats } from "../lib/projectProgress";
@@ -30,15 +32,20 @@ export const Dashboard: React.FC<{
   onProjectClick: (id: string) => void;
   onOpenMyTasks: (focus: MyTasksRowFocus) => void;
 }> = ({ onProjectClick, onOpenMyTasks }) => {
-  const { currentUser, projects, tasks } = useAppContext();
+  const { currentUser, projects, tasks, users } = useAppContext();
+  const { user } = useAuth();
   const { workspaceId } = useWorkspace();
   const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
-  const { assignedTodoRows } = useMyAssignedProjectTodoItems(workspaceId, currentUser.id, projectIds);
+  const identityIds = useMemo(
+    () => collectUserIdentityIds(currentUser.id, user?.uid ?? null, users, currentUser.email),
+    [currentUser.id, currentUser.email, user?.uid, users]
+  );
+  const { assignedTodoRows } = useMyAssignedProjectTodoItems(workspaceId, identityIds, projectIds);
   const todoCountsByProject = useProjectTodoCountsByProject(workspaceId, projectIds);
 
   const myKanbanTasks = useMemo(
-    () => tasks.filter((t) => t.assignees.includes(currentUser.id)),
-    [tasks, currentUser.id]
+    () => tasks.filter((t) => identityIds.some((id) => isUserAmongAssignees(t.assignees, id))),
+    [tasks, identityIds]
   );
 
   const completedTasks =
