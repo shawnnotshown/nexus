@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { WorkspaceProvider, useWorkspace } from "@/context/WorkspaceContext";
@@ -108,11 +108,23 @@ function JoinProjectScreen() {
   );
 }
 
+function JoinPageFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-indigo-50 p-6">
+      <div className="max-w-md w-full bg-white rounded-[2rem] border border-indigo-100 shadow-xl shadow-indigo-100/50 p-10 text-center">
+        <p className="text-sm font-semibold text-indigo-700">Loading invite...</p>
+      </div>
+    </div>
+  );
+}
+
 export default function JoinPage() {
   return (
     <AuthProvider>
       <WorkspaceProvider>
-        <JoinProjectScreen />
+        <Suspense fallback={<JoinPageFallback />}>
+          <JoinProjectScreen />
+        </Suspense>
       </WorkspaceProvider>
     </AuthProvider>
   );
