@@ -1,30 +1,20 @@
 import { randomBytes } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { FieldValue, Timestamp } from "firebase-admin/firestore";
-import { Resend } from "resend";
 import { getAdminAuth, getAdminDb } from "@/lib/firebaseAdmin";
+import {
+  appUrl,
+  getBearerToken,
+  normalizeEmail,
+  resendFailureMessage,
+  sendResendMessage,
+} from "@/lib/email";
 
 interface CreateInviteBody {
   workspaceId?: string;
   projectId?: string;
   email?: string;
   sendEmail?: boolean;
-}
-
-function getBearerToken(req: NextRequest): string | null {
-  const authHeader = req.headers.get("authorization");
-  if (!authHeader?.startsWith("Bearer ")) return null;
-  return authHeader.slice("Bearer ".length).trim();
-}
-
-function normalizeEmail(email?: string): string | undefined {
-  if (!email) return undefined;
-  const normalized = email.trim().toLowerCase();
-  return normalized.length > 0 ? normalized : undefined;
-}
-
-function appUrl() {
-  return (process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "").replace(/\/$/, "");
 }
 
 export async function POST(req: NextRequest) {
@@ -85,35 +75,15 @@ export async function POST(req: NextRequest) {
     const inviteUrl = `${baseUrl}/join?w=${encodeURIComponent(workspaceId)}&t=${encodeURIComponent(inviteToken)}`;
 
     if (sendEmail && email) {
-      const resendApiKey = process.env.RESEND_API_KEY;
-      const resendFrom = process.env.RESEND_FROM;
-      if (!resendApiKey || !resendFrom) {
-        return NextResponse.json(
-          { error: "RESEND_API_KEY and RESEND_FROM are required for email invites." },
-          { status: 500 }
-        );
-      }
-      const resend = new Resend(resendApiKey);
-      const { error: resendError } = await resend.emails.send({
-        from: resendFrom,
+      const result = await sendResendMessage({
         to: email,
         subject: "You're invited to a Nexus project",
         text: `You were invited to join a Nexus project. Open this link to sign in and accept: ${inviteUrl}`,
         html: `<p>You were invited to join a Nexus project.</p><p><a href="${inviteUrl}">Open invite link</a></p><p>If the button doesn't work, copy this URL:<br/>${inviteUrl}</p>`,
       });
-      if (resendError) {
-        const detail =
-          typeof resendError === "object" &&
-          resendError !== null &&
-          "message" in resendError &&
-          typeof (resendError as { message: unknown }).message === "string"
-            ? (resendError as { message: string }).message
-            : JSON.stringify(resendError);
-        console.error("[project-invites] Resend send failed:", resendError);
-        return NextResponse.json(
-          { error: `Email could not be sent (${detail}). Fix RESEND_FROM (use a full address like "Nexus <onboarding@resend.dev>" or a verified domain) and check the Resend dashboard.` },
-          { status: 502 }
-        );
+      if (!result.ok) {
+        console.error("[project-invites] Resend send failed:", result.detail);
+        return NextResponse.json({ error: resendFailureMessage(result.detail) }, { status: result.status });
       }
     }
 

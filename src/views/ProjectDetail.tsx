@@ -30,6 +30,10 @@ import {
   percentDone,
   todoListsProgressStats,
 } from "../lib/projectProgress";
+import {
+  filterAssigneesForNotification,
+  notifyTaskAssignment,
+} from "../lib/notifyTaskAssignment";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
   const { projects, users, deleteProject, currentUser, tasks } = useAppContext();
@@ -145,14 +149,33 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     void extras.toggleTodoItem(taskId, !task.completed);
   };
 
+  const sendTodoAssignmentEmails = (taskTitle: string, assigneeIds: string[]) => {
+    if (!user || !workspaceId || !project) return;
+    const toNotify = filterAssigneesForNotification(assigneeIds, currentUser, users, user.uid);
+    if (toNotify.length === 0) return;
+    void notifyTaskAssignment({
+      firebaseUser: user,
+      workspaceId,
+      projectId: project.id,
+      projectName: project.name,
+      taskTitle,
+      assigneeIds: toNotify,
+      source: "todo",
+    });
+  };
+
   const handleAddTask = (listId: string) => {
     if (!newTaskTitle.trim()) {
       setIsAddingTask(false);
       return;
     }
+    const title = newTaskTitle.trim();
     const assignees = newTaskAssigneeId ? [newTaskAssigneeId] : [];
     const dueDateIso = newTaskDeadline ? new Date(`${newTaskDeadline}T23:59:59`).toISOString() : undefined;
-    void extras.createTodoItem(listId, newTaskTitle.trim(), assignees, dueDateIso);
+    void extras.createTodoItem(listId, title, assignees, dueDateIso);
+    if (newTaskAssigneeId) {
+      sendTodoAssignmentEmails(title, [newTaskAssigneeId]);
+    }
     setNewTaskTitle("");
     setNewTaskDeadline("");
     setIsAddingTask(true);
@@ -171,9 +194,15 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setActiveTodoList(null);
   };
 
-  const handleAddAssigneeToTodoTask = (taskId: string, assignees: string[], assigneeId: string) => {
+  const handleAddAssigneeToTodoTask = (
+    taskId: string,
+    assignees: string[],
+    assigneeId: string,
+    taskTitle: string
+  ) => {
     if (!assigneeId || assignees.includes(assigneeId)) return;
     void extras.updateTodoItem(taskId, { assignees: [...assignees, assigneeId] });
+    sendTodoAssignmentEmails(taskTitle, [assigneeId]);
     setShowAssigneePicker(false);
   };
 
@@ -394,7 +423,14 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                                         <button
                                           key={u.id}
                                           type="button"
-                                          onClick={() => handleAddAssigneeToTodoTask(task.id, task.assignees, u.id)}
+                                          onClick={() =>
+                                            handleAddAssigneeToTodoTask(
+                                              task.id,
+                                              task.assignees,
+                                              u.id,
+                                              task.title
+                                            )
+                                          }
                                           className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors text-left"
                                         >
                                           <img src={u.avatar} alt={u.name} className="w-6 h-6 rounded-full border border-slate-200 object-cover" />

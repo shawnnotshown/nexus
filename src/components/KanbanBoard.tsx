@@ -1,5 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useAppContext } from "../context/AppContext";
+import { useAuth } from "../context/AuthContext";
+import { useWorkspace } from "../context/WorkspaceContext";
+import {
+  filterAssigneesForNotification,
+  notifyTaskAssignment,
+} from "../lib/notifyTaskAssignment";
 import { format } from "date-fns";
 import {
   Clock,
@@ -60,7 +66,11 @@ export const KanbanBoard: React.FC<{ projectId: string; teamMemberIds: string[] 
   projectId,
   teamMemberIds,
 }) => {
-  const { tasks, updateTaskState, addTask, deleteTask, users, currentUser } = useAppContext();
+  const { tasks, updateTaskState, addTask, deleteTask, users, currentUser, projects } =
+    useAppContext();
+  const { user } = useAuth();
+  const { workspaceId } = useWorkspace();
+  const project = projects.find((p) => p.id === projectId);
   const projectTasks = tasks.filter((t) => t.projectId === projectId);
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
   /** When set, the “new card” modal is open; value is the default board column for the new task */
@@ -142,9 +152,25 @@ export const KanbanBoard: React.FC<{ projectId: string; teamMemberIds: string[] 
     if (Object.keys(patch).length > 0) void updateTaskState(taskId, patch);
   };
 
-  const addAssignee = (taskId: string, assignees: string[], userId: string) => {
+  const sendKanbanAssignmentEmails = (taskTitle: string, assigneeIds: string[]) => {
+    if (!user || !workspaceId || !project) return;
+    const toNotify = filterAssigneesForNotification(assigneeIds, currentUser, users, user.uid);
+    if (toNotify.length === 0) return;
+    void notifyTaskAssignment({
+      firebaseUser: user,
+      workspaceId,
+      projectId: project.id,
+      projectName: project.name,
+      taskTitle,
+      assigneeIds: toNotify,
+      source: "kanban",
+    });
+  };
+
+  const addAssignee = (taskId: string, assignees: string[], userId: string, taskTitle: string) => {
     if (!userId || assignees.includes(userId)) return;
     void updateTaskState(taskId, { assignees: [...assignees, userId] });
+    sendKanbanAssignmentEmails(taskTitle, [userId]);
     setAssigneePickerTaskId(null);
   };
 
@@ -209,6 +235,9 @@ export const KanbanBoard: React.FC<{ projectId: string; teamMemberIds: string[] 
         priority: newCardPriority,
         assignees: newCardAssignees.length > 0 ? newCardAssignees : undefined,
       });
+      const assigneesForNotify =
+        newCardAssignees.length > 0 ? newCardAssignees : currentUser.id ? [currentUser.id] : [];
+      sendKanbanAssignmentEmails(title, assigneesForNotify);
       resetNewCardForm();
       setNewCardColumn(null);
     } finally {
@@ -541,7 +570,9 @@ export const KanbanBoard: React.FC<{ projectId: string; teamMemberIds: string[] 
                                     <button
                                       key={u.id}
                                       type="button"
-                                      onClick={() => addAssignee(task.id, task.assignees, u.id)}
+                                      onClick={() =>
+                                        addAssignee(task.id, task.assignees, u.id, task.title)
+                                      }
                                       className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-indigo-50 transition-colors text-left"
                                     >
                                       {u.avatar ? (
