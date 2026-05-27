@@ -96,13 +96,25 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
 
       match /members/{userId} {
-        allow read: if isWorkspaceMember(workspaceId);
+        // A user can always read their own member doc (needed for the initial
+        // workspace-access check in WorkspaceContext before the SDK cache is warm).
+        allow read: if request.auth != null && (
+          request.auth.uid == userId
+          || isWorkspaceMember(workspaceId)
+        );
 
+        // Workspace creator bootstraps their own owner member doc.
         allow create: if request.auth != null
           && request.auth.uid == userId
           && get(/databases/$(database)/documents/workspaces/$(workspaceId)).data.createdBy == request.auth.uid;
 
-        allow update, delete: if isWorkspaceMember(workspaceId) && request.auth.uid == userId;
+        // Invited members (whose doc was created by the Admin SDK) can update
+        // their own doc (e.g. to sync their email / display name).
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          && isWorkspaceMember(workspaceId);
+
+        allow delete: if isWorkspaceMember(workspaceId) && request.auth.uid == userId;
       }
 
       match /projects/{projectId} {

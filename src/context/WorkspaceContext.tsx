@@ -107,7 +107,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
               : workspaceIds[0]!;
 
           if (wid !== user.uid) {
-            const memberSnap = await getDoc(doc(db, "workspaces", wid, "members", user.uid));
+            // Force a server read so we never rely on a stale SDK cache for the
+            // member doc that was just written by the Admin SDK after invite acceptance.
+            const memberRef = doc(db, "workspaces", wid, "members", user.uid);
+            console.debug("[WorkspaceContext] checking member doc", { path: memberRef.path });
+            const memberSnap = await getDocFromServer(memberRef);
+            console.debug("[WorkspaceContext] member doc result", { exists: memberSnap.exists(), wid, uid: user.uid });
             if (!memberSnap.exists()) {
               if (!cancelled) {
                 setError(

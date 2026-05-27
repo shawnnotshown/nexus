@@ -105,6 +105,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAllTasks([]);
     setMessages([]);
     setMembersSnapshotReady(false);
+    console.debug("[AppContext] subscribing to members collection", { workspaceId, uid: user?.uid });
     return onSnapshot(
       collection(db, "workspaces", workspaceId, "members"),
       (snap) => {
@@ -113,11 +114,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           const raw = d.data() as Record<string, unknown>;
           list.push(memberDocToUser(d.id, raw));
         });
+        console.debug("[AppContext] members snapshot OK", { count: list.length, ids: list.map((u) => u.id) });
         setUsers(list);
         setMembersSnapshotReady(true);
       },
       (err) => {
-        console.error("[AppContext] members listener:", err);
+        console.error("[AppContext] ❌ members listener FAILED — this is the permissions error source:", err, { workspaceId, uid: user?.uid });
         setUsers([]);
         setAllProjects([]);
         setAllTasks([]);
@@ -148,6 +150,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ? projectsCol
       : query(projectsCol, where("team", "array-contains", user.uid));
 
+    console.debug("[AppContext] subscribing to projects collection", { workspaceId, uid: user.uid, isOwner });
     return onSnapshot(
       projectsQ,
       (snap) => {
@@ -156,10 +159,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           list.push(projectFromFirestore(d.id, d.data() as Record<string, unknown>));
         });
         list.sort((a, b) => a.name.localeCompare(b.name));
+        console.debug("[AppContext] projects snapshot OK", { count: list.length, isOwner });
         setAllProjects(list);
       },
       (err) =>
-        console.error("[AppContext] projects listener:", err, {
+        console.error("[AppContext] ❌ projects listener FAILED:", err, {
           workspaceId,
           uid: user.uid,
           membersSnapshotReady,
