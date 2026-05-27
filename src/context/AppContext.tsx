@@ -98,6 +98,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
 
+    // Clear stale data when switching workspaces; otherwise downstream listeners may
+    // run with old `users/projects` and hit permission errors.
+    setUsers([]);
+    setAllProjects([]);
+    setAllTasks([]);
+    setMessages([]);
     setMembersSnapshotReady(false);
     return onSnapshot(
       collection(db, "workspaces", workspaceId, "members"),
@@ -112,6 +118,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       (err) => {
         console.error("[AppContext] members listener:", err);
+        setUsers([]);
+        setAllProjects([]);
+        setAllTasks([]);
+        setMessages([]);
         setMembersSnapshotReady(true);
       }
     );

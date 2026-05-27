@@ -57,6 +57,14 @@ async function ensureInviteeAccess(
       { merge: true }
     );
   });
+
+  // Post-condition debug: lets us verify team membership was actually written.
+  const [memberSnap, projectSnap] = await Promise.all([memberRef.get(), projectRef.get()]);
+  return {
+    memberExists: memberSnap.exists,
+    memberRole: memberSnap.exists ? (memberSnap.data()?.role as string | undefined) : undefined,
+    projectTeam: projectSnap.exists ? (projectSnap.data()?.team as unknown) : undefined,
+  };
 }
 
 export async function POST(req: NextRequest) {
@@ -113,8 +121,14 @@ export async function POST(req: NextRequest) {
       typeof inviteData.acceptedByUid === "string" ? inviteData.acceptedByUid : null;
     if (inviteData.acceptedAt) {
       if (acceptedByUid === uid) {
-        await ensureInviteeAccess(db, workspaceId, projectId, uid, verified);
-        return NextResponse.json({ ok: true, workspaceId, projectId, alreadyAccepted: true });
+        const debug = await ensureInviteeAccess(db, workspaceId, projectId, uid, verified);
+        return NextResponse.json({
+          ok: true,
+          workspaceId,
+          projectId,
+          alreadyAccepted: true,
+          debug,
+        });
       }
       return NextResponse.json({ error: "Invite was already accepted." }, { status: 409 });
     }
@@ -151,9 +165,9 @@ export async function POST(req: NextRequest) {
       });
     });
 
-    await ensureInviteeAccess(db, workspaceId, projectId, uid, verified);
+    const debug = await ensureInviteeAccess(db, workspaceId, projectId, uid, verified);
 
-    return NextResponse.json({ ok: true, workspaceId, projectId });
+    return NextResponse.json({ ok: true, workspaceId, projectId, debug });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to accept invite.";
     const status = message.toLowerCase().includes("expired")
