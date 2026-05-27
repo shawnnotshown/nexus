@@ -111,8 +111,9 @@ service cloud.firestore {
       }
 
       match /projects/{projectId} {
-        allow read: if isWorkspaceMember(workspaceId)
-          && (isWorkspaceOwner(workspaceId) || isOnResourceProjectTeam());
+        // Owners (workspace creator) may list all projects even before their member doc exists.
+        allow read: if isWorkspaceOwner(workspaceId)
+          || (isWorkspaceMember(workspaceId) && isOnResourceProjectTeam());
 
         allow create: if isWorkspaceOwner(workspaceId)
           && request.resource.data.keys().hasAll(['name', 'description', 'progress', 'team'])

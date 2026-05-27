@@ -13,6 +13,52 @@ function getBearerToken(req: NextRequest): string | null {
   return authHeader.slice("Bearer ".length).trim();
 }
 
+function memberProfile(verified: { name?: string | null; picture?: string | null; email?: string | null }) {
+  return {
+    role: "member",
+    xp: 0,
+    level: 1,
+    badges: [] as string[],
+    joinedAt: FieldValue.serverTimestamp(),
+    displayName: verified.name ?? "",
+    photoURL: verified.picture ?? "",
+    name: verified.name ?? "Member",
+    email: verified.email ?? "",
+  };
+}
+
+/** Idempotent: ensures invitee has workspace membership and project team access. */
+async function ensureInviteeAccess(
+  db: ReturnType<typeof getAdminDb>,
+  workspaceId: string,
+  projectId: string,
+  uid: string,
+  verified: { name?: string | null; picture?: string | null; email?: string | null }
+) {
+  const memberRef = db.doc(`workspaces/${workspaceId}/members/${uid}`);
+  const projectRef = db.doc(`workspaces/${workspaceId}/projects/${projectId}`);
+  const userRef = db.doc(`users/${uid}`);
+
+  await db.runTransaction(async (txn) => {
+    const project = await txn.get(projectRef);
+    if (!project.exists) throw new Error("Project no longer exists.");
+
+    txn.set(memberRef, memberProfile(verified), { merge: true });
+    txn.update(projectRef, { team: FieldValue.arrayUnion(uid) });
+    txn.set(
+      userRef,
+      {
+        displayName: verified.name ?? "",
+        photoURL: verified.picture ?? "",
+        email: verified.email ?? "",
+        workspaceIds: FieldValue.arrayUnion(workspaceId),
+        defaultWorkspaceId: workspaceId,
+      },
+      { merge: true }
+    );
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as AcceptInviteBody;
@@ -67,6 +113,7 @@ export async function POST(req: NextRequest) {
       typeof inviteData.acceptedByUid === "string" ? inviteData.acceptedByUid : null;
     if (inviteData.acceptedAt) {
       if (acceptedByUid === uid) {
+        await ensureInviteeAccess(db, workspaceId, projectId, uid, verified);
         return NextResponse.json({ ok: true, workspaceId, projectId, alreadyAccepted: true });
       }
       return NextResponse.json({ error: "Invite was already accepted." }, { status: 409 });
@@ -81,8 +128,6 @@ export async function POST(req: NextRequest) {
 
     const workspaceRef = db.doc(`workspaces/${workspaceId}`);
     const projectRef = db.doc(`workspaces/${workspaceId}/projects/${projectId}`);
-    const memberRef = db.doc(`workspaces/${workspaceId}/members/${uid}`);
-    const userRef = db.doc(`users/${uid}`);
 
     await db.runTransaction(async (txn) => {
       const freshInvite = await txn.get(docSnap.ref);
@@ -104,39 +149,9 @@ export async function POST(req: NextRequest) {
         acceptedAt: FieldValue.serverTimestamp(),
         acceptedByUid: uid,
       });
-
-      txn.set(
-        memberRef,
-        {
-          role: "member",
-          xp: 0,
-          level: 1,
-          badges: [],
-          joinedAt: FieldValue.serverTimestamp(),
-          displayName: verified.name ?? "",
-          photoURL: verified.picture ?? "",
-          name: verified.name ?? "Member",
-          email: verified.email ?? "",
-        },
-        { merge: true }
-      );
-
-      txn.update(projectRef, {
-        team: FieldValue.arrayUnion(uid),
-      });
-
-      txn.set(
-        userRef,
-        {
-          displayName: verified.name ?? "",
-          photoURL: verified.picture ?? "",
-          email: verified.email ?? "",
-          workspaceIds: FieldValue.arrayUnion(workspaceId),
-          defaultWorkspaceId: workspaceId,
-        },
-        { merge: true }
-      );
     });
+
+    await ensureInviteeAccess(db, workspaceId, projectId, uid, verified);
 
     return NextResponse.json({ ok: true, workspaceId, projectId });
   } catch (error) {

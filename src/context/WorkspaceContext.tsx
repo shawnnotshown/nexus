@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
+import { doc, getDoc, getDocFromServer, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { getFirebaseDb } from "../lib/firebase";
 import { acceptProjectInvite } from "../lib/acceptProjectInvite";
 import { parsePendingInvite, PENDING_INVITE_KEY } from "../lib/pendingInvite";
@@ -91,12 +91,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        const snap = await getDoc(userRef);
+        let snap = await getDocFromServer(userRef).catch(() => getDoc(userRef));
         const data = snap.exists() ? (snap.data() as Record<string, unknown>) : {};
         const { workspaceIds, defaultWid } = toWorkspaceSelection(data);
 
         if (workspaceIds.length > 0) {
           const wid = defaultWid && workspaceIds.includes(defaultWid) ? defaultWid : workspaceIds[0]!;
+
+          if (wid !== user.uid) {
+            const memberSnap = await getDoc(doc(db, "workspaces", wid, "members", user.uid));
+            if (!memberSnap.exists()) {
+              if (!cancelled) {
+                setError(
+                  "You do not have access to this workspace yet. Open the invite link again or ask the project owner for a new invite."
+                );
+                setWorkspaceId(null);
+                setReady(true);
+              }
+              return;
+            }
+          }
 
           if (user.email) {
             try {

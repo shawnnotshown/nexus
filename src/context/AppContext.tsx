@@ -83,6 +83,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const { workspaceId } = useWorkspace();
   const [users, setUsers] = useState<User[]>([]);
+  const [membersSnapshotReady, setMembersSnapshotReady] = useState(false);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -91,8 +92,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const db = getFirebaseDb();
 
   useEffect(() => {
-    if (!db || !workspaceId) return;
+    if (!db || !workspaceId) {
+      setMembersSnapshotReady(false);
+      setUsers([]);
+      return;
+    }
 
+    setMembersSnapshotReady(false);
     return onSnapshot(
       collection(db, "workspaces", workspaceId, "members"),
       (snap) => {
@@ -102,14 +108,27 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           list.push(memberDocToUser(d.id, raw));
         });
         setUsers(list);
+        setMembersSnapshotReady(true);
       },
-      (err) => console.error("[AppContext] members listener:", err)
+      (err) => {
+        console.error("[AppContext] members listener:", err);
+        setMembersSnapshotReady(true);
+      }
     );
   }, [db, workspaceId]);
 
+  const hasWorkspaceAccess = useMemo(() => {
+    if (!user || !workspaceId) return false;
+    if (workspaceId === user.uid) return true;
+    return users.some((m) => m.id === user.uid);
+  }, [user, workspaceId, users]);
+
   // Owners may list all projects; invited members must query team array-contains or Firestore denies the listener.
   useEffect(() => {
-    if (!db || !workspaceId || !user) return;
+    if (!db || !workspaceId || !user || !membersSnapshotReady || !hasWorkspaceAccess) {
+      if (!hasWorkspaceAccess) setAllProjects([]);
+      return;
+    }
 
     const member = users.find((m) => m.id === user.uid);
     const isOwner = workspaceId === user.uid || isWorkspaceOwnerRole(member?.role);
@@ -131,7 +150,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       },
       (err) => console.error("[AppContext] projects listener:", err)
     );
-  }, [db, workspaceId, user, users]);
+  }, [db, workspaceId, user, users, membersSnapshotReady, hasWorkspaceAccess]);
 
   // Tasks: rules scope by projectId — must query with `in` chunks, not the whole collection.
   useEffect(() => {
@@ -172,7 +191,10 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   // Messages: rules scope by channelId — subscribe per channel, not the whole collection.
   useEffect(() => {
-    if (!db || !workspaceId || !user) return;
+    if (!db || !workspaceId || !user || !membersSnapshotReady || !hasWorkspaceAccess) {
+      if (!hasWorkspaceAccess) setMessages([]);
+      return;
+    }
 
     const uid = user.uid;
 
@@ -215,7 +237,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => unsubs.forEach((u) => u());
-  }, [db, workspaceId, user, users]);
+  }, [db, workspaceId, user, users, membersSnapshotReady, hasWorkspaceAccess]);
 
   const currentUser = useMemo((): User => {
     const u = user;
