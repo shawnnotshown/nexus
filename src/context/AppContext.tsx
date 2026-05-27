@@ -93,14 +93,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!db || !workspaceId) return;
 
-    return onSnapshot(collection(db, "workspaces", workspaceId, "members"), (snap) => {
-      const list: User[] = [];
-      snap.forEach((d) => {
-        const raw = d.data() as Record<string, unknown>;
-        list.push(memberDocToUser(d.id, raw));
-      });
-      setUsers(list);
-    });
+    return onSnapshot(
+      collection(db, "workspaces", workspaceId, "members"),
+      (snap) => {
+        const list: User[] = [];
+        snap.forEach((d) => {
+          const raw = d.data() as Record<string, unknown>;
+          list.push(memberDocToUser(d.id, raw));
+        });
+        setUsers(list);
+      },
+      (err) => console.error("[AppContext] members listener:", err)
+    );
   }, [db, workspaceId]);
 
   // Owners may list all projects; invited members must query team array-contains or Firestore denies the listener.
@@ -115,14 +119,18 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       ? projectsCol
       : query(projectsCol, where("team", "array-contains", user.uid));
 
-    return onSnapshot(projectsQ, (snap) => {
-      const list: Project[] = [];
-      snap.forEach((d) => {
-        list.push(projectFromFirestore(d.id, d.data() as Record<string, unknown>));
-      });
-      list.sort((a, b) => a.name.localeCompare(b.name));
-      setAllProjects(list);
-    });
+    return onSnapshot(
+      projectsQ,
+      (snap) => {
+        const list: Project[] = [];
+        snap.forEach((d) => {
+          list.push(projectFromFirestore(d.id, d.data() as Record<string, unknown>));
+        });
+        list.sort((a, b) => a.name.localeCompare(b.name));
+        setAllProjects(list);
+      },
+      (err) => console.error("[AppContext] projects listener:", err)
+    );
   }, [db, workspaceId, user, users]);
 
   // Tasks: rules scope by projectId — must query with `in` chunks, not the whole collection.
@@ -143,16 +151,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         collection(db, "workspaces", workspaceId, "tasks"),
         where("projectId", "in", chunk)
       );
-      return onSnapshot(tasksQ, (snap) => {
-        const chunkTasks: Task[] = [];
-        snap.forEach((d) => {
-          chunkTasks.push(taskFromFirestore(d.id, d.data() as Record<string, unknown>));
-        });
-        setAllTasks((prev) => {
-          const rest = prev.filter((t) => !chunkSet.has(t.projectId));
-          return [...rest, ...chunkTasks];
-        });
-      });
+      return onSnapshot(
+        tasksQ,
+        (snap) => {
+          const chunkTasks: Task[] = [];
+          snap.forEach((d) => {
+            chunkTasks.push(taskFromFirestore(d.id, d.data() as Record<string, unknown>));
+          });
+          setAllTasks((prev) => {
+            const rest = prev.filter((t) => !chunkSet.has(t.projectId));
+            return [...rest, ...chunkTasks];
+          });
+        },
+        (err) => console.error("[AppContext] tasks listener:", err)
+      );
     });
 
     return () => unsubs.forEach((u) => u());
@@ -163,13 +175,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     if (!db || !workspaceId || !user) return;
 
     const uid = user.uid;
-    const member = users.find((m) => m.id === uid);
-    const isOwner = workspaceId === uid || isWorkspaceOwnerRole(member?.role);
 
     const channelIds: string[] = [];
-    if (isOwner) {
-      for (const ch of WORKSPACE_CHANNELS) channelIds.push(ch.id);
-    }
+    for (const ch of WORKSPACE_CHANNELS) channelIds.push(ch.id);
     for (const peer of users) {
       if (peer.id === uid) continue;
       channelIds.push(directMessageChannelId(uid, peer.id));
@@ -201,7 +209,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
               (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
             );
           });
-        }
+        },
+        (err) => console.error(`[AppContext] messages listener (${channelId}):`, err)
       )
     );
 

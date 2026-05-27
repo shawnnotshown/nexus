@@ -23,13 +23,18 @@ service cloud.firestore {
         );
     }
 
-    function projectTeam(workspaceId, projectId) {
-      return get(/databases/$(database)/documents/workspaces/$(workspaceId)/projects/$(projectId)).data.team;
+    function projectTeamList(workspaceId, projectId) {
+      let team = get(/databases/$(database)/documents/workspaces/$(workspaceId)/projects/$(projectId)).data.team;
+      return team is list ? team : [];
     }
 
     function isOnProjectTeam(workspaceId, projectId) {
-      return request.auth != null
-        && request.auth.uid in projectTeam(workspaceId, projectId);
+      return request.auth.uid in projectTeamList(workspaceId, projectId);
+    }
+
+    function isOnResourceProjectTeam() {
+      return resource.data.team is list
+        && request.auth.uid in resource.data.team;
     }
 
     function canAccessProject(workspaceId, projectId) {
@@ -50,6 +55,12 @@ service cloud.firestore {
         && canAccessProject(workspaceId, incomingTaskProjectId(workspaceId));
     }
 
+    function isWorkspaceChannel(channelId) {
+      return channelId == 'general'
+        || channelId == 'design-updates'
+        || channelId == 'feature-requests';
+    }
+
     function isDmChannelForUser(channelId) {
       return channelId is string && (
         channelId.matches('dm:' + request.auth.uid + ':[^:]+')
@@ -59,8 +70,11 @@ service cloud.firestore {
 
     function canReadMessage(workspaceId) {
       let channelId = resource.data.channelId;
-      return isWorkspaceOwner(workspaceId)
-        || (channelId is string && isDmChannelForUser(channelId));
+      return channelId is string && (
+        isWorkspaceChannel(channelId)
+        || isDmChannelForUser(channelId)
+        || isWorkspaceOwner(workspaceId)
+      );
     }
 
     match /users/{userId} {
@@ -97,7 +111,8 @@ service cloud.firestore {
       }
 
       match /projects/{projectId} {
-        allow read: if isWorkspaceMember(workspaceId) && canAccessProject(workspaceId, projectId);
+        allow read: if isWorkspaceMember(workspaceId)
+          && (isWorkspaceOwner(workspaceId) || isOnResourceProjectTeam());
 
         allow create: if isWorkspaceOwner(workspaceId)
           && request.resource.data.keys().hasAll(['name', 'description', 'progress', 'team'])
@@ -155,8 +170,9 @@ service cloud.firestore {
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.keys().hasAll(['channelId', 'userId', 'content', 'createdAt'])
           && (
-            isWorkspaceOwner(workspaceId)
+            isWorkspaceChannel(request.resource.data.channelId)
             || isDmChannelForUser(request.resource.data.channelId)
+            || isWorkspaceOwner(workspaceId)
           );
 
         allow update, delete: if isWorkspaceMember(workspaceId);

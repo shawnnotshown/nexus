@@ -54,18 +54,22 @@ export function useMyAssignedProjectTodoItems(
 
     const unsubs = ids.map((projectId) => {
       const col = collection(db, "workspaces", workspaceId, "projects", projectId, "todoItems");
-      return onSnapshot(col, (snap) => {
-        if (cancelled) return;
+      return onSnapshot(
+        col,
+        (snap) => {
+          if (cancelled) return;
 
-        const rows: AssignedProjectTodoRow[] = [];
-        snap.forEach((d) => {
-          const item = projectTodoItemFromFirestore(d.id, d.data() as Record<string, unknown>);
-          if (matchesUser(item.assignees)) {
-            rows.push({ projectId, item });
-          }
-        });
-        setRowsByProject((prev) => ({ ...prev, [projectId]: rows }));
-      });
+          const rows: AssignedProjectTodoRow[] = [];
+          snap.forEach((d) => {
+            const item = projectTodoItemFromFirestore(d.id, d.data() as Record<string, unknown>);
+            if (matchesUser(item.assignees)) {
+              rows.push({ projectId, item });
+            }
+          });
+          setRowsByProject((prev) => ({ ...prev, [projectId]: rows }));
+        },
+        (err) => console.error(`[useMyAssignedProjectTodoItems] ${projectId}:`, err)
+      );
     });
 
     return () => {

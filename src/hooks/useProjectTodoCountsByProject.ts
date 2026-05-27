@@ -35,16 +35,20 @@ export function useProjectTodoCountsByProject(workspaceId: string | null, projec
     });
 
     const unsubs = ids.map((projectId) =>
-      onSnapshot(collection(db, "workspaces", workspaceId, "projects", projectId, "todoItems"), (snap) => {
-        let total = 0;
-        let completed = 0;
-        snap.forEach((d) => {
-          total++;
-          const data = d.data() as { completed?: boolean };
-          if (data.completed) completed++;
-        });
-        setCounts((prev) => ({ ...prev, [projectId]: { total, completed } }));
-      })
+      onSnapshot(
+        collection(db, "workspaces", workspaceId, "projects", projectId, "todoItems"),
+        (snap) => {
+          let total = 0;
+          let completed = 0;
+          snap.forEach((d) => {
+            total++;
+            const data = d.data() as { completed?: boolean };
+            if (data.completed) completed++;
+          });
+          setCounts((prev) => ({ ...prev, [projectId]: { total, completed } }));
+        },
+        (err) => console.error(`[useProjectTodoCounts] ${projectId}:`, err)
+      )
     );
 
     return () => {
