@@ -1,9 +1,3 @@
-export const WORKSPACE_CHANNELS = [
-  { id: "general", label: "general" },
-  { id: "design-updates", label: "design-updates" },
-  { id: "feature-requests", label: "feature-requests" },
-] as const;
-
 /** Stable thread id for a 1:1 DM (same for both participants). */
 export function directMessageChannelId(userIdA: string, userIdB: string): string {
   const [first, second] =

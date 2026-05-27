@@ -50,10 +50,10 @@ service cloud.firestore {
         && canAccessProject(workspaceId, incomingTaskProjectId(workspaceId));
     }
 
-    function isWorkspaceChannel(channelId) {
-      return channelId == 'general'
-        || channelId == 'design-updates'
-        || channelId == 'feature-requests';
+    function isProjectChannelForUser(workspaceId, channelId) {
+      let chPath = /databases/$(database)/documents/workspaces/$(workspaceId)/projectChannels/$(channelId);
+      return exists(chPath)
+        && isOnProjectTeam(workspaceId, get(chPath).data.projectId);
     }
 
     function isDmChannelForUser(channelId) {
@@ -66,7 +66,7 @@ service cloud.firestore {
     function canReadMessage(workspaceId) {
       let channelId = resource.data.channelId;
       return channelId is string && (
-        isWorkspaceChannel(channelId)
+        isProjectChannelForUser(workspaceId, channelId)
         || isDmChannelForUser(channelId)
         || isWorkspaceOwner(workspaceId)
       );
@@ -171,6 +171,20 @@ service cloud.firestore {
         allow update, delete: if isWorkspaceMember(workspaceId) && canAccessTaskProject(workspaceId);
       }
 
+      match /projectChannels/{channelId} {
+        allow read: if isWorkspaceMember(workspaceId)
+          && isOnProjectTeam(workspaceId, resource.data.projectId);
+
+        allow create: if isWorkspaceMember(workspaceId)
+          && isOnProjectTeam(workspaceId, request.resource.data.projectId)
+          && request.resource.data.keys().hasAll(['projectId', 'name', 'isDefault', 'createdAt', 'createdBy']);
+
+        allow update: if isWorkspaceMember(workspaceId)
+          && isOnProjectTeam(workspaceId, resource.data.projectId);
+
+        allow delete: if isWorkspaceOwner(workspaceId);
+      }
+
       match /messages/{messageId} {
         allow read: if isWorkspaceMember(workspaceId) && canReadMessage(workspaceId);
 
@@ -178,7 +192,7 @@ service cloud.firestore {
           && request.resource.data.userId == request.auth.uid
           && request.resource.data.keys().hasAll(['channelId', 'userId', 'content', 'createdAt'])
           && (
-            isWorkspaceChannel(request.resource.data.channelId)
+            isProjectChannelForUser(workspaceId, request.resource.data.channelId)
             || isDmChannelForUser(request.resource.data.channelId)
             || isWorkspaceOwner(workspaceId)
           );

@@ -70,6 +70,16 @@ export interface Message {
   createdAt: string;
 }
 
+/** Project-scoped team chat channel (main or subchannel). */
+export interface ProjectChannel {
+  id: string;
+  projectId: string;
+  name: string;
+  isDefault: boolean;
+  createdAt?: string;
+  createdBy?: string;
+}
+
 /** Project hub — Firestore + Storage backed */
 export interface ProjectBoardThread {
   id: string;

@@ -1,5 +1,16 @@
 import { Timestamp } from "firebase/firestore";
-import type { Badge, Comment, Message, Priority, Project, ProjectTodoItem, Task, TaskStatus, User } from "../types";
+import type {
+  Badge,
+  Comment,
+  Message,
+  Priority,
+  Project,
+  ProjectChannel,
+  ProjectTodoItem,
+  Task,
+  TaskStatus,
+  User,
+} from "../types";
 
 const STATUSES: TaskStatus[] = ["todo", "in-progress", "review", "done"];
 const PRIORITIES: Priority[] = ["low", "medium", "high", "urgent"];
@@ -160,6 +171,17 @@ export function taskFromFirestore(id: string, data: Record<string, unknown>): Ta
     subtasks,
     dependencies: deps,
     timeTracked: typeof data.timeTracked === "number" ? data.timeTracked : 0,
+  };
+}
+
+export function projectChannelFromFirestore(id: string, data: Record<string, unknown>): ProjectChannel {
+  return {
+    id,
+    projectId: String(data.projectId ?? ""),
+    name: String(data.name ?? ""),
+    isDefault: Boolean(data.isDefault),
+    createdAt: data.createdAt != null ? toIso(data.createdAt) : undefined,
+    createdBy: typeof data.createdBy === "string" ? data.createdBy : undefined,
   };
 }
 

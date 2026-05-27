@@ -30,10 +30,11 @@ import {
 import { getFirebaseDb } from "../lib/firebase";
 import { useAuth } from "./AuthContext";
 import { useWorkspace } from "./WorkspaceContext";
-import type { User, Project, Task, Message, Priority, TaskStatus } from "../types";
+import type { User, Project, Task, Message, ProjectChannel, Priority, TaskStatus } from "../types";
 import {
   memberDocToUser,
   projectFromFirestore,
+  projectChannelFromFirestore,
   taskFromFirestore,
   messageFromFirestore,
 } from "../lib/firestoreMappers";
@@ -42,7 +43,7 @@ import {
   filterTasksForAccessibleProjects,
   isWorkspaceOwnerRole,
 } from "../lib/projectAccess";
-import { WORKSPACE_CHANNELS, chunkIds, directMessageChannelId } from "../lib/chatChannels";
+import { chunkIds, directMessageChannelId } from "../lib/chatChannels";
 
 export interface ProfileUpdates {
   name?: string;
@@ -57,6 +58,8 @@ interface AppContextType {
   projects: Project[];
   tasks: Task[];
   messages: Message[];
+  projectChannels: ProjectChannel[];
+  createSubChannel: (projectId: string, name: string) => Promise<void>;
   activeModals: { [key: string]: boolean };
   toggleModal: (modalId: string, isOpen: boolean) => void;
   updateTaskState: (taskId: string, updates: Partial<Task>) => Promise<void>;
@@ -88,6 +91,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [projectChannels, setProjectChannels] = useState<ProjectChannel[]>([]);
   const [activeModals, setActiveModals] = useState<{ [key: string]: boolean }>({});
   const [projectsRetryTick, setProjectsRetryTick] = useState(0);
   const projectsRetryAttemptedRef = useRef(false);
@@ -107,6 +111,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAllProjects([]);
     setAllTasks([]);
     setMessages([]);
+    setProjectChannels([]);
     setMembersSnapshotReady(false);
     console.debug("[AppContext] subscribing to members collection", { workspaceId, uid: user?.uid });
     return onSnapshot(
@@ -127,6 +132,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setAllProjects([]);
         setAllTasks([]);
         setMessages([]);
+        setProjectChannels([]);
         setMembersSnapshotReady(true);
       }
     );
@@ -237,6 +243,49 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     return () => unsubs.forEach((u) => u());
   }, [db, workspaceId, allProjects]);
 
+  // Project channels: scoped to projects the user is on.
+  useEffect(() => {
+    if (!db || !workspaceId) return;
+
+    const projectIds = allProjects.map((p) => p.id);
+    if (projectIds.length === 0) {
+      setProjectChannels([]);
+      return;
+    }
+
+    setProjectChannels([]);
+    const chunks = chunkIds(projectIds);
+    const unsubs = chunks.map((chunk) => {
+      const chunkSet = new Set(chunk);
+      const channelsQ = query(
+        collection(db, "workspaces", workspaceId, "projectChannels"),
+        where("projectId", "in", chunk)
+      );
+      return onSnapshot(
+        channelsQ,
+        (snap) => {
+          const chunkChannels: ProjectChannel[] = [];
+          snap.forEach((d) => {
+            chunkChannels.push(projectChannelFromFirestore(d.id, d.data() as Record<string, unknown>));
+          });
+          setProjectChannels((prev) => {
+            const rest = prev.filter((ch) => !chunkSet.has(ch.projectId));
+            const merged = [...rest, ...chunkChannels];
+            merged.sort((a, b) => {
+              if (a.projectId !== b.projectId) return a.projectId.localeCompare(b.projectId);
+              if (a.isDefault !== b.isDefault) return a.isDefault ? -1 : 1;
+              return a.name.localeCompare(b.name);
+            });
+            return merged;
+          });
+        },
+        (err) => console.error("[AppContext] projectChannels listener:", err)
+      );
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [db, workspaceId, allProjects]);
+
   // Messages: rules scope by channelId — subscribe per channel, not the whole collection.
   useEffect(() => {
     if (!db || !workspaceId || !user || !membersSnapshotReady || !hasWorkspaceAccess) {
@@ -246,11 +295,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const uid = user.uid;
 
-    const channelIds: string[] = [];
-    for (const ch of WORKSPACE_CHANNELS) channelIds.push(ch.id);
-    for (const peer of users) {
-      if (peer.id === uid) continue;
-      channelIds.push(directMessageChannelId(uid, peer.id));
+    const projectPeerIds = new Set<string>();
+    for (const p of allProjects) {
+      for (const memberId of p.team) {
+        if (memberId !== uid) projectPeerIds.add(memberId);
+      }
+    }
+
+    const channelIds: string[] = projectChannels.map((ch) => ch.id);
+    for (const peerId of projectPeerIds) {
+      channelIds.push(directMessageChannelId(uid, peerId));
     }
 
     if (channelIds.length === 0) {
@@ -285,7 +339,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     );
 
     return () => unsubs.forEach((u) => u());
-  }, [db, workspaceId, user, users, membersSnapshotReady, hasWorkspaceAccess]);
+  }, [db, workspaceId, user, users, allProjects, projectChannels, membersSnapshotReady, hasWorkspaceAccess]);
 
   const currentUser = useMemo((): User => {
     const u = user;
@@ -359,7 +413,30 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         team,
       };
       if (projectData.dueDate) payload.dueDate = projectData.dueDate;
-      await addDoc(collection(db, "workspaces", workspaceId, "projects"), payload);
+      const projectRef = await addDoc(collection(db, "workspaces", workspaceId, "projects"), payload);
+      await addDoc(doc(db, "workspaces", workspaceId, "projectChannels", projectRef.id), {
+        projectId: projectRef.id,
+        name: projectData.name,
+        isDefault: true,
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+      });
+    },
+    [db, workspaceId, user]
+  );
+
+  const createSubChannel = useCallback(
+    async (projectId: string, name: string) => {
+      if (!db || !workspaceId || !user) return;
+      const trimmed = name.trim();
+      if (!trimmed) return;
+      await addDoc(collection(db, "workspaces", workspaceId, "projectChannels"), {
+        projectId,
+        name: trimmed,
+        isDefault: false,
+        createdAt: serverTimestamp(),
+        createdBy: user.uid,
+      });
     },
     [db, workspaceId, user]
   );
@@ -539,6 +616,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         projects,
         tasks,
         messages,
+        projectChannels,
+        createSubChannel,
         activeModals,
         toggleModal,
         updateTaskState,
