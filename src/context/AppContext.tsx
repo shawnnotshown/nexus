@@ -17,6 +17,7 @@ import {
   query,
   orderBy,
   addDoc,
+  setDoc,
   updateDoc,
   getDoc,
   getDocs,
@@ -414,7 +415,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       };
       if (projectData.dueDate) payload.dueDate = projectData.dueDate;
       const projectRef = await addDoc(collection(db, "workspaces", workspaceId, "projects"), payload);
-      await addDoc(doc(db, "workspaces", workspaceId, "projectChannels", projectRef.id), {
+      await setDoc(doc(db, "workspaces", workspaceId, "projectChannels", projectRef.id), {
         projectId: projectRef.id,
         name: projectData.name,
         isDefault: true,
