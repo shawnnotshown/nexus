@@ -4,6 +4,7 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Nexus',
   description: 'Project management and gamified collaboration',
+  themeColor: '#312e81',
 };
 
 export default function RootLayout({
