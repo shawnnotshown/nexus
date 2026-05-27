@@ -8,7 +8,8 @@ import { FolderKanban, MoreVertical, Calendar, Users, Plus, X, Trash2 } from "lu
 import { format } from "date-fns";
 
 export const Projects: React.FC<{ onProjectClick: (id: string) => void }> = ({ onProjectClick }) => {
-  const { projects, users, addProject, deleteProject, tasks } = useAppContext();
+  const { projects, users, addProject, deleteProject, tasks, currentUser } = useAppContext();
+  const canManageProjects = currentUser.role === "owner";
   const { workspaceId } = useWorkspace();
   const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
   const todoCountsByProject = useProjectTodoCountsByProject(workspaceId, projectIds);
@@ -40,13 +41,15 @@ export const Projects: React.FC<{ onProjectClick: (id: string) => void }> = ({ o
           <h1 className="text-3xl font-black text-indigo-900 tracking-tight">Projects</h1>
           <p className="text-slate-500 mt-1 font-medium">Manage your team's workspaces and progress.</p>
         </div>
-        <button 
-          onClick={() => setIsAddingProject(true)}
-          className="bg-rose-500 hover:bg-rose-600 text-white px-5 py-3 rounded-[1.5rem] text-sm font-black tracking-wide flex items-center gap-2 transition-transform hover:scale-105 shadow-xl shadow-rose-200 uppercase"
-        >
-          <Plus size={18} className="stroke-[3px]" />
-          <span>New Project</span>
-        </button>
+        {canManageProjects && (
+          <button
+            onClick={() => setIsAddingProject(true)}
+            className="bg-rose-500 hover:bg-rose-600 text-white px-5 py-3 rounded-[1.5rem] text-sm font-black tracking-wide flex items-center gap-2 transition-transform hover:scale-105 shadow-xl shadow-rose-200 uppercase"
+          >
+            <Plus size={18} className="stroke-[3px]" />
+            <span>New Project</span>
+          </button>
+        )}
       </div>
 
       {/* Add Project Inline Form */}
@@ -131,9 +134,9 @@ export const Projects: React.FC<{ onProjectClick: (id: string) => void }> = ({ o
                   >
                     <MoreVertical size={20} />
                   </button>
-                  {activeDropdown === project.id && (
+                  {canManageProjects && activeDropdown === project.id && (
                     <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-2xl shadow-xl shadow-indigo-100/50 border border-slate-100 p-2 z-20" onClick={e => e.stopPropagation()}>
-                      <button 
+                      <button
                         onClick={() => {
                           if (deleteProject) void deleteProject(project.id);
                           setActiveDropdown(null);

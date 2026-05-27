@@ -10,6 +10,8 @@ import {
   sendResendMessage,
 } from "@/lib/email";
 
+const INVITE_EXPIRY_DAYS = 14;
+
 interface CreateInviteBody {
   workspaceId?: string;
   projectId?: string;
@@ -56,7 +58,9 @@ export async function POST(req: NextRequest) {
 
     const inviteToken = randomBytes(32).toString("base64url");
     const inviteRef = db.doc(`workspaces/${workspaceId}/projectInvites/${inviteToken}`);
-    const expiresAt = Timestamp.fromDate(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000));
+    const expiresAt = Timestamp.fromDate(
+      new Date(Date.now() + INVITE_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+    );
     await inviteRef.set({
       workspaceId,
       projectId,
@@ -75,11 +79,12 @@ export async function POST(req: NextRequest) {
     const inviteUrl = `${baseUrl}/join?w=${encodeURIComponent(workspaceId)}&t=${encodeURIComponent(inviteToken)}`;
 
     if (sendEmail && email) {
+      const expiryNote = `This link expires in ${INVITE_EXPIRY_DAYS} days.`;
       const result = await sendResendMessage({
         to: email,
         subject: "You're invited to a Nexus project",
-        text: `You were invited to join a Nexus project. Open this link to sign in and accept: ${inviteUrl}`,
-        html: `<p>You were invited to join a Nexus project.</p><p><a href="${inviteUrl}">Open invite link</a></p><p>If the button doesn't work, copy this URL:<br/>${inviteUrl}</p>`,
+        text: `You were invited to join a Nexus project. Open this link to sign in and accept: ${inviteUrl}\n\n${expiryNote}`,
+        html: `<p>You were invited to join a Nexus project.</p><p><a href="${inviteUrl}">Open invite link</a></p><p>If the button doesn't work, copy this URL:<br/>${inviteUrl}</p><p><strong>${expiryNote}</strong></p>`,
       });
       if (!result.ok) {
         console.error("[project-invites] Resend send failed:", result.detail);

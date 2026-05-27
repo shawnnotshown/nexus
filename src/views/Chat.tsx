@@ -3,18 +3,7 @@ import { useAppContext } from "../context/AppContext";
 import { Send, Hash, Search, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "../lib/utils";
-
-const WORKSPACE_CHANNELS = [
-  { id: "general", label: "general" },
-  { id: "design-updates", label: "design-updates" },
-  { id: "feature-requests", label: "feature-requests" },
-] as const;
-
-/** Stable thread id for a 1:1 DM (same for both participants). */
-function directMessageChannelId(userIdA: string, userIdB: string): string {
-  const [first, second] = userIdA.localeCompare(userIdB) <= 0 ? [userIdA, userIdB] : [userIdB, userIdA];
-  return `dm:${first}:${second}`;
-}
+import { WORKSPACE_CHANNELS, directMessageChannelId } from "../lib/chatChannels";
 
 function getDmPeerUserId(channelId: string, myId: string): string | null {
   if (!channelId.startsWith("dm:")) return null;

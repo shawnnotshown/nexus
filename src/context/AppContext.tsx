@@ -36,6 +36,12 @@ import {
   taskFromFirestore,
   messageFromFirestore,
 } from "../lib/firestoreMappers";
+import {
+  filterProjectsForUser,
+  filterTasksForAccessibleProjects,
+  isWorkspaceOwnerRole,
+} from "../lib/projectAccess";
+import { WORKSPACE_CHANNELS, chunkIds, directMessageChannelId } from "../lib/chatChannels";
 
 export interface ProfileUpdates {
   name?: string;
@@ -77,8 +83,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const { user } = useAuth();
   const { workspaceId } = useWorkspace();
   const [users, setUsers] = useState<User[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeModals, setActiveModals] = useState<{ [key: string]: boolean }>({});
 
@@ -107,36 +113,93 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           list.push(projectFromFirestore(d.id, d.data() as Record<string, unknown>));
         });
         list.sort((a, b) => a.name.localeCompare(b.name));
-        setProjects(list);
-      })
-    );
-
-    unsubs.push(
-      onSnapshot(collection(db, "workspaces", workspaceId, "tasks"), (snap) => {
-        const list: Task[] = [];
-        snap.forEach((d) => {
-          list.push(taskFromFirestore(d.id, d.data() as Record<string, unknown>));
-        });
-        setTasks(list);
-      })
-    );
-
-    const messagesQ = query(
-      collection(db, "workspaces", workspaceId, "messages"),
-      orderBy("createdAt", "asc")
-    );
-    unsubs.push(
-      onSnapshot(messagesQ, (snap) => {
-        const list: Message[] = [];
-        snap.forEach((d) => {
-          list.push(messageFromFirestore(d.id, d.data() as Record<string, unknown>));
-        });
-        setMessages(list);
+        setAllProjects(list);
       })
     );
 
     return () => unsubs.forEach((u) => u());
   }, [db, workspaceId]);
+
+  // Tasks: rules scope by projectId — must query with `in` chunks, not the whole collection.
+  useEffect(() => {
+    if (!db || !workspaceId) return;
+
+    const projectIds = allProjects.map((p) => p.id);
+    if (projectIds.length === 0) {
+      setAllTasks([]);
+      return;
+    }
+
+    setAllTasks([]);
+    const chunks = chunkIds(projectIds);
+    const unsubs = chunks.map((chunk) => {
+      const chunkSet = new Set(chunk);
+      const tasksQ = query(
+        collection(db, "workspaces", workspaceId, "tasks"),
+        where("projectId", "in", chunk)
+      );
+      return onSnapshot(tasksQ, (snap) => {
+        const chunkTasks: Task[] = [];
+        snap.forEach((d) => {
+          chunkTasks.push(taskFromFirestore(d.id, d.data() as Record<string, unknown>));
+        });
+        setAllTasks((prev) => {
+          const rest = prev.filter((t) => !chunkSet.has(t.projectId));
+          return [...rest, ...chunkTasks];
+        });
+      });
+    });
+
+    return () => unsubs.forEach((u) => u());
+  }, [db, workspaceId, allProjects]);
+
+  // Messages: rules scope by channelId — subscribe per channel, not the whole collection.
+  useEffect(() => {
+    if (!db || !workspaceId || !user) return;
+
+    const uid = user.uid;
+    const member = users.find((m) => m.id === uid);
+    const isOwner = member?.role === "owner" || workspaceId === uid;
+
+    const channelIds: string[] = [];
+    if (isOwner) {
+      for (const ch of WORKSPACE_CHANNELS) channelIds.push(ch.id);
+    }
+    for (const peer of users) {
+      if (peer.id === uid) continue;
+      channelIds.push(directMessageChannelId(uid, peer.id));
+    }
+
+    if (channelIds.length === 0) {
+      setMessages([]);
+      return;
+    }
+
+    setMessages([]);
+    const unsubs = channelIds.map((channelId) =>
+      onSnapshot(
+        query(
+          collection(db, "workspaces", workspaceId, "messages"),
+          where("channelId", "==", channelId),
+          orderBy("createdAt", "asc")
+        ),
+        (snap) => {
+          const channelMessages: Message[] = [];
+          snap.forEach((d) => {
+            channelMessages.push(messageFromFirestore(d.id, d.data() as Record<string, unknown>));
+          });
+          setMessages((prev) => {
+            const rest = prev.filter((m) => m.channelId !== channelId);
+            return [...rest, ...channelMessages].sort(
+              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            );
+          });
+        }
+      )
+    );
+
+    return () => unsubs.forEach((u) => u());
+  }, [db, workspaceId, user, users]);
 
   const currentUser = useMemo((): User => {
     const u = user;
@@ -169,6 +232,20 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       email: u.email ?? undefined,
     };
   }, [user, users]);
+
+  const isWorkspaceOwner = isWorkspaceOwnerRole(currentUser.role);
+
+  const projects = useMemo(
+    () => filterProjectsForUser(allProjects, user?.uid ?? "", isWorkspaceOwner),
+    [allProjects, user?.uid, isWorkspaceOwner]
+  );
+
+  const accessibleProjectIds = useMemo(() => new Set(projects.map((p) => p.id)), [projects]);
+
+  const tasks = useMemo(
+    () => filterTasksForAccessibleProjects(allTasks, accessibleProjectIds),
+    [allTasks, accessibleProjectIds]
+  );
 
   const awardXp = useCallback(
     async (uid: string, amount: number) => {
