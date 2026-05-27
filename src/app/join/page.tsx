@@ -4,6 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { WorkspaceProvider, useWorkspace } from "@/context/WorkspaceContext";
+import { acceptProjectInvite } from "@/lib/acceptProjectInvite";
 import { PENDING_INVITE_KEY, serializePendingInvite } from "@/lib/pendingInvite";
 
 function JoinProjectScreen() {
@@ -40,18 +41,7 @@ function JoinProjectScreen() {
       setError(null);
       try {
         const idToken = await user.getIdToken();
-        const response = await fetch("/api/project-invites/accept", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ workspaceId, token: inviteToken }),
-        });
-        const payload = (await response.json()) as { error?: string };
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to accept invite.");
-        }
+        await acceptProjectInvite(idToken, workspaceId, inviteToken);
         sessionStorage.removeItem(PENDING_INVITE_KEY);
         if (!cancelled) {
           setStatus("Invite accepted. Redirecting...");

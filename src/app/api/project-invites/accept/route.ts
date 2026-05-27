@@ -63,7 +63,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invite has expired." }, { status: 410 });
     }
 
+    const acceptedByUid =
+      typeof inviteData.acceptedByUid === "string" ? inviteData.acceptedByUid : null;
     if (inviteData.acceptedAt) {
+      if (acceptedByUid === uid) {
+        return NextResponse.json({ ok: true, workspaceId, projectId, alreadyAccepted: true });
+      }
       return NextResponse.json({ error: "Invite was already accepted." }, { status: 409 });
     }
 

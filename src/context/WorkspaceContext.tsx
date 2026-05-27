@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { doc, getDoc, setDoc, serverTimestamp, arrayUnion } from "firebase/firestore";
 import { getFirebaseDb } from "../lib/firebase";
+import { acceptProjectInvite } from "../lib/acceptProjectInvite";
 import { parsePendingInvite, PENDING_INVITE_KEY } from "../lib/pendingInvite";
 import { useAuth } from "./AuthContext";
 
@@ -14,11 +15,18 @@ interface WorkspaceContextType {
 
 const WorkspaceContext = createContext<WorkspaceContextType | undefined>(undefined);
 
+function toWorkspaceSelection(raw: Record<string, unknown>) {
+  const workspaceIds = Array.isArray(raw.workspaceIds) ? (raw.workspaceIds as string[]) : [];
+  const defaultWid = typeof raw.defaultWorkspaceId === "string" ? raw.defaultWorkspaceId : null;
+  return { workspaceIds, defaultWid };
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const { user, loading: authLoading, configError } = useAuth();
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   useEffect(() => {
     if (configError) {
       setError("Firebase is not configured. Set NEXT_PUBLIC_FIREBASE_* in .env.local.");
@@ -49,18 +57,43 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     (async () => {
       setReady(false);
       setError(null);
+
       try {
         const userRef = doc(db, "users", user.uid);
-        const snap = await getDoc(userRef);
-        const toWorkspaceSelection = (raw: Record<string, unknown>) => {
-          const workspaceIds = Array.isArray(raw.workspaceIds) ? (raw.workspaceIds as string[]) : [];
-          const defaultWid =
-            typeof raw.defaultWorkspaceId === "string" ? raw.defaultWorkspaceId : null;
-          return { workspaceIds, defaultWid };
-        };
+        const pendingInvite = parsePendingInvite(sessionStorage.getItem(PENDING_INVITE_KEY));
 
+        // Always process a pending invite first — even if the user already has a personal workspace.
+        if (pendingInvite) {
+          try {
+            const idToken = await user.getIdToken();
+            const accepted = await acceptProjectInvite(
+              idToken,
+              pendingInvite.workspaceId,
+              pendingInvite.token
+            );
+            sessionStorage.removeItem(PENDING_INVITE_KEY);
+
+            if (!cancelled) {
+              setWorkspaceId(accepted.workspaceId);
+              setReady(true);
+            }
+            return;
+          } catch (inviteError) {
+            sessionStorage.removeItem(PENDING_INVITE_KEY);
+            if (!cancelled) {
+              setError(
+                inviteError instanceof Error ? inviteError.message : "Failed to accept invite."
+              );
+              setWorkspaceId(null);
+              setReady(true);
+            }
+            return;
+          }
+        }
+
+        const snap = await getDoc(userRef);
         const data = snap.exists() ? (snap.data() as Record<string, unknown>) : {};
-        let { workspaceIds, defaultWid } = toWorkspaceSelection(data);
+        const { workspaceIds, defaultWid } = toWorkspaceSelection(data);
 
         if (workspaceIds.length > 0) {
           const wid = defaultWid && workspaceIds.includes(defaultWid) ? defaultWid : workspaceIds[0]!;
@@ -85,51 +118,6 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         }
 
         if (cancelled) return;
-
-        const pendingInvite = parsePendingInvite(sessionStorage.getItem(PENDING_INVITE_KEY));
-        if (pendingInvite) {
-          try {
-            const idToken = await user.getIdToken();
-            const response = await fetch("/api/project-invites/accept", {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${idToken}`,
-              },
-              body: JSON.stringify({
-                workspaceId: pendingInvite.workspaceId,
-                token: pendingInvite.token,
-              }),
-            });
-            const payload = (await response.json()) as { error?: string };
-            if (!response.ok) {
-              throw new Error(payload.error ?? "Failed to accept invite.");
-            }
-
-            sessionStorage.removeItem(PENDING_INVITE_KEY);
-            const refreshed = await getDoc(userRef);
-            const refreshedData = refreshed.exists()
-              ? (refreshed.data() as Record<string, unknown>)
-              : {};
-            ({ workspaceIds, defaultWid } = toWorkspaceSelection(refreshedData));
-            if (workspaceIds.length > 0) {
-              const acceptedWorkspaceId =
-                defaultWid && workspaceIds.includes(defaultWid) ? defaultWid : workspaceIds[0]!;
-              if (!cancelled) {
-                setWorkspaceId(acceptedWorkspaceId);
-                setReady(true);
-              }
-              return;
-            }
-          } catch {
-            sessionStorage.removeItem(PENDING_INVITE_KEY);
-          }
-        } else {
-          const legacy = sessionStorage.getItem(PENDING_INVITE_KEY);
-          if (legacy) {
-            sessionStorage.removeItem(PENDING_INVITE_KEY);
-          }
-        }
 
         const displayName = user.displayName ?? "My workspace";
         const photoURL = user.photoURL ?? "";

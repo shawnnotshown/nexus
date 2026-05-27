@@ -2,7 +2,7 @@ import type { Project, Task } from "../types";
 
 /** Workspace owners see every project; invited members only see projects they are on. */
 export function isWorkspaceOwnerRole(role: string | undefined): boolean {
-  return role === "owner";
+  return role?.trim().toLowerCase() === "owner";
 }
 
 export function canUserAccessProject(
