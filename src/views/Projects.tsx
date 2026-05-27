@@ -6,10 +6,11 @@ import { WorkProgressBar } from "../components/WorkProgressBar";
 import { combinedWorkProgressPercent, kanbanProgressStats } from "../lib/projectProgress";
 import { FolderKanban, MoreVertical, Calendar, Users, Plus, X, Trash2 } from "lucide-react";
 import { format } from "date-fns";
+import { isWorkspaceOwnerRole } from "../lib/projectAccess";
 
 export const Projects: React.FC<{ onProjectClick: (id: string) => void }> = ({ onProjectClick }) => {
   const { projects, users, addProject, deleteProject, tasks, currentUser } = useAppContext();
-  const canManageProjects = currentUser.role === "owner";
+  const canManageProjects = isWorkspaceOwnerRole(currentUser.role);
   const { workspaceId } = useWorkspace();
   const projectIds = useMemo(() => projects.map((p) => p.id), [projects]);
   const todoCountsByProject = useProjectTodoCountsByProject(workspaceId, projectIds);
