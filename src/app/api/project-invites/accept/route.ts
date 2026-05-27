@@ -60,10 +60,13 @@ async function ensureInviteeAccess(
 
   // Post-condition debug: lets us verify team membership was actually written.
   const [memberSnap, projectSnap] = await Promise.all([memberRef.get(), projectRef.get()]);
+  const projectTeam = projectSnap.exists ? (projectSnap.data()?.team as unknown) : undefined;
   return {
     memberExists: memberSnap.exists,
     memberRole: memberSnap.exists ? (memberSnap.data()?.role as string | undefined) : undefined,
-    projectTeam: projectSnap.exists ? (projectSnap.data()?.team as unknown) : undefined,
+    uid,
+    projectTeam,
+    projectTeamIncludesUid: Array.isArray(projectTeam) ? projectTeam.includes(uid) : false,
   };
 }
 
