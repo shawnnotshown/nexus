@@ -93,32 +93,37 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     if (!db || !workspaceId) return;
 
-    const unsubs: (() => void)[] = [];
-
-    unsubs.push(
-      onSnapshot(collection(db, "workspaces", workspaceId, "members"), (snap) => {
-        const list: User[] = [];
-        snap.forEach((d) => {
-          const raw = d.data() as Record<string, unknown>;
-          list.push(memberDocToUser(d.id, raw));
-        });
-        setUsers(list);
-      })
-    );
-
-    unsubs.push(
-      onSnapshot(collection(db, "workspaces", workspaceId, "projects"), (snap) => {
-        const list: Project[] = [];
-        snap.forEach((d) => {
-          list.push(projectFromFirestore(d.id, d.data() as Record<string, unknown>));
-        });
-        list.sort((a, b) => a.name.localeCompare(b.name));
-        setAllProjects(list);
-      })
-    );
-
-    return () => unsubs.forEach((u) => u());
+    return onSnapshot(collection(db, "workspaces", workspaceId, "members"), (snap) => {
+      const list: User[] = [];
+      snap.forEach((d) => {
+        const raw = d.data() as Record<string, unknown>;
+        list.push(memberDocToUser(d.id, raw));
+      });
+      setUsers(list);
+    });
   }, [db, workspaceId]);
+
+  // Owners may list all projects; invited members must query team array-contains or Firestore denies the listener.
+  useEffect(() => {
+    if (!db || !workspaceId || !user) return;
+
+    const member = users.find((m) => m.id === user.uid);
+    const isOwner = workspaceId === user.uid || isWorkspaceOwnerRole(member?.role);
+
+    const projectsCol = collection(db, "workspaces", workspaceId, "projects");
+    const projectsQ = isOwner
+      ? projectsCol
+      : query(projectsCol, where("team", "array-contains", user.uid));
+
+    return onSnapshot(projectsQ, (snap) => {
+      const list: Project[] = [];
+      snap.forEach((d) => {
+        list.push(projectFromFirestore(d.id, d.data() as Record<string, unknown>));
+      });
+      list.sort((a, b) => a.name.localeCompare(b.name));
+      setAllProjects(list);
+    });
+  }, [db, workspaceId, user, users]);
 
   // Tasks: rules scope by projectId — must query with `in` chunks, not the whole collection.
   useEffect(() => {
@@ -159,7 +164,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     const uid = user.uid;
     const member = users.find((m) => m.id === uid);
-    const isOwner = member?.role === "owner" || workspaceId === uid;
+    const isOwner = workspaceId === uid || isWorkspaceOwnerRole(member?.role);
 
     const channelIds: string[] = [];
     if (isOwner) {
@@ -180,14 +185,16 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       onSnapshot(
         query(
           collection(db, "workspaces", workspaceId, "messages"),
-          where("channelId", "==", channelId),
-          orderBy("createdAt", "asc")
+          where("channelId", "==", channelId)
         ),
         (snap) => {
           const channelMessages: Message[] = [];
           snap.forEach((d) => {
             channelMessages.push(messageFromFirestore(d.id, d.data() as Record<string, unknown>));
           });
+          channelMessages.sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
           setMessages((prev) => {
             const rest = prev.filter((m) => m.channelId !== channelId);
             return [...rest, ...channelMessages].sort(
