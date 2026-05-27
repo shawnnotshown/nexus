@@ -76,6 +76,9 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem(PENDING_INVITE_KEY);
 
             if (!cancelled) {
+              // Force a fresh ID token so Firestore listeners reconnect using the
+              // newly-updated membership (Admin SDK writes).
+              await user.getIdToken(true);
               sessionStorage.setItem(LAST_WORKSPACE_ID_KEY, accepted.workspaceId);
               setWorkspaceId(accepted.workspaceId);
               setReady(true);

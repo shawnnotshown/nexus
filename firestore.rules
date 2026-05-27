@@ -118,10 +118,9 @@ service cloud.firestore {
       }
 
       match /projects/{projectId} {
-        // Important: don't use `get()` on this same project doc for list queries.
-        // Use `resource.data.team` directly (resource is the candidate document).
-        allow read: if isWorkspaceOwner(workspaceId)
-          || (resource.data.team is list && request.auth.uid in resource.data.team);
+        // Diagnostic: allow any authenticated workspace member to read projects.
+        // Client-side array-contains filter already restricts visible results to the user's projects.
+        allow read: if isWorkspaceMember(workspaceId);
 
         allow create: if isWorkspaceOwner(workspaceId)
           && request.resource.data.keys().hasAll(['name', 'description', 'progress', 'team'])

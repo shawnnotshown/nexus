@@ -7,6 +7,7 @@ import React, {
   useMemo,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import {
@@ -88,6 +89,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeModals, setActiveModals] = useState<{ [key: string]: boolean }>({});
+  const [projectsRetryTick, setProjectsRetryTick] = useState(0);
+  const projectsRetryAttemptedRef = useRef(false);
 
   const db = getFirebaseDb();
 
@@ -145,10 +148,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     const member = users.find((m) => m.id === user.uid);
     const isOwner = workspaceId === user.uid || isWorkspaceOwnerRole(member?.role);
 
-    const projectsCol = collection(db, "workspaces", workspaceId, "projects");
-    const projectsQ = isOwner
-      ? projectsCol
-      : query(projectsCol, where("team", "array-contains", user.uid));
+    // Every project is created with the creator in the team (enforced by Firestore create rule),
+    // so array-contains returns all projects for both owners and invited members.
+    // Unfiltered collection reads are avoided — Firestore cannot statically prove those safe.
+    const projectsQ = query(
+      collection(db, "workspaces", workspaceId, "projects"),
+      where("team", "array-contains", user.uid)
+    );
 
     console.debug("[AppContext] subscribing to projects collection", { workspaceId, uid: user.uid, isOwner });
     return onSnapshot(
@@ -162,7 +168,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         console.debug("[AppContext] projects snapshot OK", { count: list.length, isOwner });
         setAllProjects(list);
       },
-      (err) =>
+      (err) => {
         console.error("[AppContext] ❌ projects listener FAILED:", err, {
           workspaceId,
           uid: user.uid,
@@ -170,9 +176,29 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
           hasWorkspaceAccess,
           usersCount: users.length,
           isOwner,
-        })
+        });
+
+        // One-shot recovery: invite acceptance writes may not be visible to the client yet.
+        // For permission-related failures, force a token refresh and retry the listener once.
+        const code = (err as { code?: string }).code;
+        const message = (err as { message?: string }).message;
+        const permissionDenied =
+          code === "permission-denied" || (typeof message === "string" && message.toLowerCase().includes("permission"));
+
+        if (permissionDenied && !projectsRetryAttemptedRef.current) {
+          projectsRetryAttemptedRef.current = true;
+          window.setTimeout(async () => {
+            try {
+              await user.getIdToken(true);
+              setProjectsRetryTick((t) => t + 1);
+            } catch {
+              // If token refresh fails, let the listener fail quietly.
+            }
+          }, 2000);
+        }
+      }
     );
-  }, [db, workspaceId, user, users, membersSnapshotReady, hasWorkspaceAccess]);
+  }, [db, workspaceId, user, users, membersSnapshotReady, hasWorkspaceAccess, projectsRetryTick]);
 
   // Tasks: rules scope by projectId — must query with `in` chunks, not the whole collection.
   useEffect(() => {

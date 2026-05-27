@@ -4,61 +4,50 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { WorkspaceProvider, useWorkspace } from "@/context/WorkspaceContext";
-import { acceptProjectInvite } from "@/lib/acceptProjectInvite";
 import { PENDING_INVITE_KEY, serializePendingInvite } from "@/lib/pendingInvite";
 
 function JoinProjectScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, loading, signInWithGoogle, configError } = useAuth();
-  const { ready } = useWorkspace();
+  const { workspaceId: acceptedWorkspaceId, ready, error: workspaceError } = useWorkspace();
   const [status, setStatus] = useState("Preparing your invite...");
   const [error, setError] = useState<string | null>(null);
 
-  const workspaceId = useMemo(() => searchParams.get("w")?.trim() ?? "", [searchParams]);
+  const workspaceIdParam = useMemo(() => searchParams.get("w")?.trim() ?? "", [searchParams]);
   const inviteToken = useMemo(() => searchParams.get("t")?.trim() ?? "", [searchParams]);
 
   useEffect(() => {
-    if (!inviteToken || !workspaceId) return;
-    sessionStorage.setItem(PENDING_INVITE_KEY, serializePendingInvite(workspaceId, inviteToken));
-  }, [inviteToken, workspaceId]);
+    if (!inviteToken || !workspaceIdParam) return;
+    sessionStorage.setItem(
+      PENDING_INVITE_KEY,
+      serializePendingInvite(workspaceIdParam, inviteToken)
+    );
+  }, [inviteToken, workspaceIdParam]);
 
   useEffect(() => {
-    if (!inviteToken || !workspaceId) {
+    if (!inviteToken || !workspaceIdParam) {
       setError(
-        inviteToken && !workspaceId
+        inviteToken && !workspaceIdParam
           ? "This invite link is outdated (missing workspace). Ask the project owner for a new invite."
           : "Invite link is invalid or incomplete."
       );
       return;
     }
     setError(null);
+
+  }, [inviteToken, workspaceIdParam]);
+
+  // WorkspaceContext handles accepting the invite based on `PENDING_INVITE_KEY`.
+  // Here we only redirect once that bootstrap completes.
+  useEffect(() => {
+    if (!inviteToken || !workspaceIdParam) return;
     if (loading || !user || !ready) return;
+    if (!acceptedWorkspaceId) return;
 
-    let cancelled = false;
-    const acceptInvite = async () => {
-      setStatus("Accepting invite...");
-      setError(null);
-      try {
-        const idToken = await user.getIdToken();
-        await acceptProjectInvite(idToken, workspaceId, inviteToken);
-        sessionStorage.removeItem(PENDING_INVITE_KEY);
-        if (!cancelled) {
-          setStatus("Invite accepted. Redirecting...");
-          router.replace("/");
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : "Unable to accept invite.");
-        }
-      }
-    };
-
-    void acceptInvite();
-    return () => {
-      cancelled = true;
-    };
-  }, [inviteToken, workspaceId, loading, ready, router, user]);
+    setStatus("Invite accepted. Redirecting...");
+    router.replace("/");
+  }, [inviteToken, workspaceIdParam, acceptedWorkspaceId, ready, loading, user, router]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-indigo-50 p-6">
@@ -74,7 +63,7 @@ function JoinProjectScreen() {
             Firebase environment variables are missing. Configure them before accepting invites.
           </p>
         )}
-        {!inviteToken || !workspaceId ? (
+        {!inviteToken || !workspaceIdParam ? (
           <p className="text-sm font-semibold text-rose-600">
             {error ?? "This invite link is invalid. Ask your project owner for a new one."}
           </p>
@@ -90,7 +79,9 @@ function JoinProjectScreen() {
         ) : (
           <div className="space-y-3">
             <p className="text-sm font-semibold text-indigo-700">{status}</p>
-            {error && <p className="text-sm font-semibold text-rose-600">{error}</p>}
+            {(workspaceError || error) && (
+              <p className="text-sm font-semibold text-rose-600">{workspaceError ?? error}</p>
+            )}
           </div>
         )}
       </div>
