@@ -32,11 +32,6 @@ service cloud.firestore {
       return request.auth.uid in projectTeamList(workspaceId, projectId);
     }
 
-    function isOnResourceProjectTeam() {
-      return resource.data.team is list
-        && request.auth.uid in resource.data.team;
-    }
-
     function canAccessProject(workspaceId, projectId) {
       return isWorkspaceOwner(workspaceId) || isOnProjectTeam(workspaceId, projectId);
     }
@@ -111,9 +106,10 @@ service cloud.firestore {
       }
 
       match /projects/{projectId} {
-        // Owners (workspace creator) may list all projects even before their member doc exists.
+        // Important: don't use `get()` on this same project doc for list queries.
+        // Use `resource.data.team` directly (resource is the candidate document).
         allow read: if isWorkspaceOwner(workspaceId)
-          || (isWorkspaceMember(workspaceId) && isOnResourceProjectTeam());
+          || (resource.data.team is list && request.auth.uid in resource.data.team);
 
         allow create: if isWorkspaceOwner(workspaceId)
           && request.resource.data.keys().hasAll(['name', 'description', 'progress', 'team'])
