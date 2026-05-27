@@ -158,7 +158,15 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         list.sort((a, b) => a.name.localeCompare(b.name));
         setAllProjects(list);
       },
-      (err) => console.error("[AppContext] projects listener:", err)
+      (err) =>
+        console.error("[AppContext] projects listener:", err, {
+          workspaceId,
+          uid: user.uid,
+          membersSnapshotReady,
+          hasWorkspaceAccess,
+          usersCount: users.length,
+          isOwner,
+        })
     );
   }, [db, workspaceId, user, users, membersSnapshotReady, hasWorkspaceAccess]);
 

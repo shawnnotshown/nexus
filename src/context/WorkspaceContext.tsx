@@ -7,6 +7,8 @@ import { acceptProjectInvite } from "../lib/acceptProjectInvite";
 import { parsePendingInvite, PENDING_INVITE_KEY } from "../lib/pendingInvite";
 import { useAuth } from "./AuthContext";
 
+const LAST_WORKSPACE_ID_KEY = "nexus:lastWorkspaceId";
+
 interface WorkspaceContextType {
   workspaceId: string | null;
   ready: boolean;
@@ -74,6 +76,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
             sessionStorage.removeItem(PENDING_INVITE_KEY);
 
             if (!cancelled) {
+              sessionStorage.setItem(LAST_WORKSPACE_ID_KEY, accepted.workspaceId);
               setWorkspaceId(accepted.workspaceId);
               setReady(true);
             }
@@ -96,7 +99,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         const { workspaceIds, defaultWid } = toWorkspaceSelection(data);
 
         if (workspaceIds.length > 0) {
-          const wid = defaultWid && workspaceIds.includes(defaultWid) ? defaultWid : workspaceIds[0]!;
+          const lastWorkspaceId = sessionStorage.getItem(LAST_WORKSPACE_ID_KEY);
+          const wid = lastWorkspaceId && workspaceIds.includes(lastWorkspaceId)
+            ? lastWorkspaceId
+            : defaultWid && workspaceIds.includes(defaultWid)
+              ? defaultWid
+              : workspaceIds[0]!;
 
           if (wid !== user.uid) {
             const memberSnap = await getDoc(doc(db, "workspaces", wid, "members", user.uid));
@@ -125,6 +133,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
           }
 
           if (!cancelled) {
+            sessionStorage.setItem(LAST_WORKSPACE_ID_KEY, wid);
             setWorkspaceId(wid);
             setReady(true);
           }
@@ -179,6 +188,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         );
 
         if (!cancelled) {
+          sessionStorage.setItem(LAST_WORKSPACE_ID_KEY, wid);
           setWorkspaceId(wid);
           setReady(true);
         }
