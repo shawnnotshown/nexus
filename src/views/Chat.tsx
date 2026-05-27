@@ -16,7 +16,11 @@ function getDmPeerUserId(channelId: string, myId: string): string | null {
   return null;
 }
 
-export const Chat: React.FC = () => {
+interface ChatProps {
+  preferredChannelId?: string | null;
+}
+
+export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
   const {
     messages,
     currentUser,
@@ -44,6 +48,12 @@ export const Chat: React.FC = () => {
       setActiveChannelId(defaultChannelId);
     }
   }, [activeChannelId, defaultChannelId]);
+
+  useEffect(() => {
+    if (!preferredChannelId) return;
+    if (activeChannelId === preferredChannelId) return;
+    setActiveChannelId(preferredChannelId);
+  }, [preferredChannelId, activeChannelId]);
 
   const projectPeerIds = useMemo(() => {
     const ids = new Set<string>();

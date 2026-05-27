@@ -70,6 +70,7 @@ const staggerVariants = {
 export interface SessionNavBarProps {
   currentView: string;
   setCurrentView: (view: string) => void;
+  hasUnreadChat?: boolean;
 }
 
 function userInitials(displayName: string | null | undefined, email: string | null | undefined): string {
@@ -82,7 +83,7 @@ function userInitials(displayName: string | null | undefined, email: string | nu
   return "?";
 }
 
-export function SessionNavBar({ currentView, setCurrentView }: SessionNavBarProps) {
+export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = false }: SessionNavBarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
   const { user, signOut } = useAuth();
   const { workspaceId } = useWorkspace();
@@ -216,7 +217,15 @@ export function SessionNavBar({ currentView, setCurrentView }: SessionNavBarProp
                         isActive("chat") && "bg-slate-100 text-blue-600",
                       )}
                     >
-                      <MessagesSquare className="h-4 w-4 shrink-0" />
+                      <div className="relative shrink-0">
+                        <MessagesSquare className="h-4 w-4" />
+                        {hasUnreadChat && (
+                          <span
+                            className="absolute -right-1.5 -top-1.5 h-2.5 w-2.5 rounded-full bg-rose-500 ring-2 ring-white"
+                            aria-label="Unread chat messages"
+                          />
+                        )}
+                      </div>
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
                         {!isCollapsed && (
                           <div className="ml-2 flex items-center gap-2">

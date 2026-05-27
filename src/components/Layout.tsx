@@ -1,10 +1,10 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SessionNavBar } from "@/components/ui/sidebar";
 import { Topbar } from "./Topbar";
 import { AuthGate } from "./AuthGate";
-import { AppProvider } from "../context/AppContext";
+import { AppProvider, useAppContext } from "../context/AppContext";
 import { AuthProvider } from "../context/AuthContext";
 import { WorkspaceProvider } from "../context/WorkspaceContext";
 import { Dashboard } from "../views/Dashboard";
@@ -16,11 +16,66 @@ import { Calendar } from "../views/Calendar";
 import { Settings } from "../views/Settings";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { directMessageChannelId } from "../lib/chatChannels";
+import type { Message } from "../types";
 
-function LayoutShell() {
+function toTimestamp(value: string): number {
+  const parsed = new Date(value).getTime();
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function LayoutContent() {
+  const { messages, currentUser, users } = useAppContext();
   const [currentView, setCurrentView] = useState("dashboard");
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [myTasksRowFocus, setMyTasksRowFocus] = useState<MyTasksRowFocus | null>(null);
+  const [chatPreferredChannelId, setChatPreferredChannelId] = useState<string | null>(null);
+  const [lastSeenChatAt, setLastSeenChatAt] = useState(0);
+  const [chatPopupMessage, setChatPopupMessage] = useState<Message | null>(null);
+  const latestMessageIdRef = useRef<string | null>(null);
+
+  const incomingMessages = useMemo(
+    () => messages.filter((message) => message.userId !== currentUser.id),
+    [messages, currentUser.id]
+  );
+
+  const latestIncomingMessage = useMemo(() => {
+    if (incomingMessages.length === 0) return null;
+    return incomingMessages.reduce((latest, message) =>
+      toTimestamp(message.createdAt) > toTimestamp(latest.createdAt) ? message : latest
+    );
+  }, [incomingMessages]);
+
+  const hasUnreadChat = useMemo(
+    () => incomingMessages.some((message) => toTimestamp(message.createdAt) > lastSeenChatAt),
+    [incomingMessages, lastSeenChatAt]
+  );
+
+  useEffect(() => {
+    if (!latestIncomingMessage) return;
+
+    if (currentView === "chat") {
+      setLastSeenChatAt(toTimestamp(latestIncomingMessage.createdAt));
+      setChatPopupMessage(null);
+      latestMessageIdRef.current = latestIncomingMessage.id;
+      return;
+    }
+
+    const latestAt = toTimestamp(latestIncomingMessage.createdAt);
+    if (latestAt <= lastSeenChatAt) return;
+
+    const previousId = latestMessageIdRef.current;
+    latestMessageIdRef.current = latestIncomingMessage.id;
+    if (!previousId || previousId === latestIncomingMessage.id) return;
+
+    setChatPopupMessage(latestIncomingMessage);
+  }, [currentView, lastSeenChatAt, latestIncomingMessage]);
+
+  useEffect(() => {
+    if (!chatPopupMessage) return;
+    const timeout = window.setTimeout(() => setChatPopupMessage(null), 6000);
+    return () => window.clearTimeout(timeout);
+  }, [chatPopupMessage]);
 
   const clearMyTasksRowFocus = useCallback(() => {
     setMyTasksRowFocus(null);
@@ -29,6 +84,13 @@ function LayoutShell() {
   useEffect(() => {
     if (currentView !== "my-tasks") setMyTasksRowFocus(null);
   }, [currentView]);
+
+  useEffect(() => {
+    if (currentView !== "chat") return;
+    if (!latestIncomingMessage) return;
+    setLastSeenChatAt(toTimestamp(latestIncomingMessage.createdAt));
+    setChatPopupMessage(null);
+  }, [currentView, latestIncomingMessage]);
 
   const navigateToProject = (id: string) => {
     setActiveProjectId(id);
@@ -39,6 +101,10 @@ function LayoutShell() {
     setMyTasksRowFocus(focus ?? null);
     setCurrentView("my-tasks");
   };
+
+  const popupAuthor = chatPopupMessage
+    ? users.find((user) => user.id === chatPopupMessage.userId)
+    : null;
 
   const renderView = () => {
     switch (currentView) {
@@ -51,7 +117,7 @@ function LayoutShell() {
           <ProjectDetail projectId={activeProjectId} onBack={() => setCurrentView("projects")} />
         );
       case "chat":
-        return <Chat />;
+        return <Chat preferredChannelId={chatPreferredChannelId} />;
       case "my-tasks":
         return (
           <MyTasks
@@ -70,9 +136,12 @@ function LayoutShell() {
   };
 
   return (
-    <AppProvider>
-      <div className="relative flex h-screen overflow-hidden bg-slate-100 font-sans text-foreground select-none">
-        <SessionNavBar currentView={currentView} setCurrentView={setCurrentView} />
+    <div className="relative flex h-screen overflow-hidden bg-slate-100 font-sans text-foreground select-none">
+        <SessionNavBar
+          currentView={currentView}
+          setCurrentView={setCurrentView}
+          hasUnreadChat={hasUnreadChat}
+        />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <Topbar
             onOpenSettings={() => setCurrentView("settings")}
@@ -88,7 +157,31 @@ function LayoutShell() {
             {renderView()}
           </main>
         </div>
-      </div>
+        {chatPopupMessage && currentView !== "chat" && (
+          <button
+            type="button"
+            onClick={() => {
+              setCurrentView("chat");
+              setChatPreferredChannelId(directMessageChannelId(currentUser.id, chatPopupMessage.userId));
+              setChatPopupMessage(null);
+              setLastSeenChatAt(toTimestamp(chatPopupMessage.createdAt));
+            }}
+            className="fixed bottom-5 right-5 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-indigo-100 bg-white p-4 text-left shadow-lg shadow-indigo-200/40 transition hover:shadow-xl"
+          >
+            <p className="text-[11px] font-black uppercase tracking-wide text-rose-500">New Team Chat Message</p>
+            <p className="mt-1 text-sm font-bold text-slate-800 truncate">{popupAuthor?.name ?? "Teammate"}</p>
+            <p className="mt-1 text-sm text-slate-600 line-clamp-2">{chatPopupMessage.content}</p>
+            <p className="mt-2 text-xs font-semibold text-indigo-600">Open chat</p>
+          </button>
+        )}
+    </div>
+  );
+}
+
+function LayoutShell() {
+  return (
+    <AppProvider>
+      <LayoutContent />
     </AppProvider>
   );
 }
