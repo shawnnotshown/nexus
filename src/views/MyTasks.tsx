@@ -16,6 +16,21 @@ function todoItemAsStatus(item: ProjectTodoItem): TaskStatus {
   return item.completed ? "done" : "todo";
 }
 
+function statusBadgeClass(status: TaskStatus): string {
+  switch (status) {
+    case "todo":
+      return "bg-blue-100 text-blue-800 border border-blue-300";
+    case "in-progress":
+      return "bg-amber-100 text-amber-800 border border-amber-300";
+    case "review":
+      return "bg-violet-100 text-violet-800 border border-violet-300";
+    case "done":
+      return "bg-emerald-100 text-emerald-800 border border-emerald-300";
+    default:
+      return "bg-slate-100 text-slate-700 border border-slate-300";
+  }
+}
+
 export type MyTasksRowFocus =
   | { kind: "kanban"; taskId: string }
   | { kind: "todo"; projectId: string; itemId: string };
@@ -174,7 +189,9 @@ export const MyTasks: React.FC<{
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-slate-100">
-                    <div className="px-3 py-1.5 rounded-lg text-xs font-bold capitalize bg-slate-50 border border-slate-100 text-slate-600">
+                    <div
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize ${statusBadgeClass(task.status)}`}
+                    >
                       {task.status.replace("-", " ")}
                     </div>
                     <button
@@ -218,7 +235,9 @@ export const MyTasks: React.FC<{
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-slate-100">
-                  <div className="px-3 py-1.5 rounded-lg text-xs font-bold capitalize bg-slate-50 border border-slate-100 text-slate-600">
+                  <div
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize ${statusBadgeClass(status)}`}
+                  >
                     {status.replace("-", " ")}
                   </div>
                   <button

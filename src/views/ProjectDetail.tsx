@@ -1049,7 +1049,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     >
       {/* Header Utilities */}
       {!activeWidget && (
-        <div className="mb-2 flex shrink-0 justify-between gap-4" onClick={() => setShowProjectMenu(false)}>
+        <div className="mt-3 mb-2 flex shrink-0 justify-between gap-4 md:mt-4" onClick={() => setShowProjectMenu(false)}>
           <button 
             onClick={onBack}
             className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 mb-1 transition-colors h-fit"
