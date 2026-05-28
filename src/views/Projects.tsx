@@ -40,15 +40,15 @@ export const Projects: React.FC<{ onProjectClick: (id: string) => void }> = ({ o
       <div className="flex justify-between items-center relative z-10">
         <div>
           <h1 className="text-3xl font-black text-indigo-900 tracking-tight">Projects</h1>
-          <p className="text-slate-500 mt-1 font-medium">Manage your team's workspaces and progress.</p>
+          <p className="hidden sm:block text-slate-500 mt-1 font-medium">Manage your team's workspaces and progress.</p>
         </div>
         {canManageProjects && (
           <button
             onClick={() => setIsAddingProject(true)}
-            className="bg-rose-500 hover:bg-rose-600 text-white px-5 py-3 rounded-[1.5rem] text-sm font-black tracking-wide flex items-center gap-2 transition-transform hover:scale-105 shadow-xl shadow-rose-200 uppercase"
+            className="bg-rose-500 hover:bg-rose-600 text-white p-3 sm:px-5 sm:py-3 rounded-[1.5rem] text-sm font-black tracking-wide flex items-center gap-2 transition-transform hover:scale-105 shadow-xl shadow-rose-200 uppercase"
           >
             <Plus size={18} className="stroke-[3px]" />
-            <span>New Project</span>
+            <span className="hidden sm:inline">New Project</span>
           </button>
         )}
       </div>

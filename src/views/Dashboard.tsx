@@ -95,15 +95,15 @@ export const Dashboard: React.FC<{
   ] as const;
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="space-y-6 max-w-7xl mx-auto pt-14 md:pt-0">
+      <div className="hidden md:flex md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h1 className="text-2xl font-black text-indigo-900 tracking-tight">Welcome back, {currentUser.name.split(' ')[0]} 👋</h1>
           <p className="text-slate-500 mt-1 font-medium">Here's what's happening with your projects today.</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+      <div className="hidden md:grid md:grid-cols-12 gap-4">
         {bentoStatCards.map((stat, i) => (
           <div
             key={i}
@@ -291,7 +291,7 @@ export const Dashboard: React.FC<{
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-500 rounded-[2.5rem] shadow-xl shadow-indigo-200/50 p-8 text-white md:col-span-12">
+          <div className="hidden bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-500 rounded-[2.5rem] shadow-xl shadow-indigo-200/50 p-8 text-white md:col-span-12 md:block">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-100">Quick Actions</p>

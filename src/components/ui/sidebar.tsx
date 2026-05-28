@@ -12,15 +12,17 @@ import {
   FolderKanban,
   LayoutDashboard,
   LogOut,
+  Menu,
   MessagesSquare,
   Plus,
   Settings,
   UserCircle,
   UserCog,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -85,6 +87,8 @@ function userInitials(displayName: string | null | undefined, email: string | nu
 
 export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = false }: SessionNavBarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { workspaceId } = useWorkspace();
 
@@ -96,18 +100,68 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
   const isActive = (id: string) =>
     currentView === id || (id === "projects" && currentView === "project-detail");
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => {
+      const nextIsMobile = media.matches;
+      setIsMobile(nextIsMobile);
+      if (!nextIsMobile) setIsMobileMenuOpen(false);
+    };
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const shouldShowCollapsed = !isMobile && isCollapsed;
+
+  const handleNavigate = (view: string) => {
+    setCurrentView(view);
+    if (isMobile) setIsMobileMenuOpen(false);
+  };
+
   return (
-    <motion.div
-      className={cn(
-        "sidebar h-full shrink-0 self-stretch overflow-hidden border-r border-slate-200 bg-white text-slate-600",
+    <>
+      <button
+        type="button"
+        onClick={() => setIsMobileMenuOpen((open) => !open)}
+        className="fixed left-3 top-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
+        aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+      >
+        {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+      </button>
+
+      {isMobile && isMobileMenuOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-40 bg-slate-900/40 md:hidden"
+          aria-label="Close navigation overlay"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
       )}
-      initial={isCollapsed ? "closed" : "open"}
-      animate={isCollapsed ? "closed" : "open"}
-      variants={sidebarVariants}
-      transition={transitionProps}
-      onMouseEnter={() => setIsCollapsed(false)}
-      onMouseLeave={() => setIsCollapsed(true)}
-    >
+
+      <motion.div
+        className={cn(
+          "sidebar h-full shrink-0 self-stretch overflow-hidden border-r border-slate-200 bg-white text-slate-600",
+          isMobile
+            ? "fixed inset-y-0 left-0 z-50 w-60 shadow-xl md:hidden"
+            : "hidden md:block",
+        )}
+        initial={shouldShowCollapsed ? "closed" : "open"}
+        animate={
+          isMobile
+            ? (isMobileMenuOpen ? { x: 0 } : { x: "-100%" })
+            : (shouldShowCollapsed ? "closed" : "open")
+        }
+        variants={isMobile ? undefined : sidebarVariants}
+        transition={transitionProps}
+        onMouseEnter={() => {
+          if (!isMobile) setIsCollapsed(false);
+        }}
+        onMouseLeave={() => {
+          if (!isMobile) setIsCollapsed(true);
+        }}
+      >
       <motion.div
         className="relative flex h-full min-h-0 w-full flex-col bg-white transition-all"
         variants={contentVariants}
@@ -123,7 +177,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                         <AvatarFallback className="rounded-md text-[10px]">N</AvatarFallback>
                       </Avatar>
                       <motion.span variants={labelMotion} className="flex w-fit items-center gap-2">
-                        {!isCollapsed && (
+                        {!shouldShowCollapsed && (
                           <>
                             <p className="text-sm font-medium text-slate-900">Nexus</p>
                             <ChevronsUpDown className="h-4 w-4 text-slate-400" />
@@ -135,7 +189,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                   <DropdownMenuContent align="start">
                     <DropdownMenuItem
                       className="flex cursor-pointer items-center gap-2"
-                      onSelect={() => setCurrentView("settings")}
+                      onSelect={() => handleNavigate("settings")}
                     >
                       <UserCog className="h-4 w-4" /> Workspace settings
                     </DropdownMenuItem>
@@ -158,7 +212,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                   <div className="flex w-full flex-col gap-1">
                     <button
                       type="button"
-                      onClick={() => setCurrentView("dashboard")}
+                      onClick={() => handleNavigate("dashboard")}
                       className={cn(
                         "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600",
                         isActive("dashboard") && "bg-slate-100 text-blue-600",
@@ -166,12 +220,12 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                     >
                       <LayoutDashboard className="h-4 w-4 shrink-0" />
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
-                        {!isCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Dashboard</p>}
+                        {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Dashboard</p>}
                       </motion.span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCurrentView("projects")}
+                      onClick={() => handleNavigate("projects")}
                       className={cn(
                         "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600",
                         isActive("projects") && "bg-slate-100 text-blue-600",
@@ -179,12 +233,12 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                     >
                       <FolderKanban className="h-4 w-4 shrink-0" />
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
-                        {!isCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Projects</p>}
+                        {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Projects</p>}
                       </motion.span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCurrentView("my-tasks")}
+                      onClick={() => handleNavigate("my-tasks")}
                       className={cn(
                         "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600",
                         isActive("my-tasks") && "bg-slate-100 text-blue-600",
@@ -192,12 +246,12 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                     >
                       <CheckSquare className="h-4 w-4 shrink-0" />
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
-                        {!isCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">My Tasks</p>}
+                        {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">My Tasks</p>}
                       </motion.span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setCurrentView("calendar")}
+                      onClick={() => handleNavigate("calendar")}
                       className={cn(
                         "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600",
                         isActive("calendar") && "bg-slate-100 text-blue-600",
@@ -205,13 +259,13 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                     >
                       <Calendar className="h-4 w-4 shrink-0" />
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
-                        {!isCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Calendar</p>}
+                        {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Calendar</p>}
                       </motion.span>
                     </button>
                     <Separator className="w-full" />
                     <button
                       type="button"
-                      onClick={() => setCurrentView("chat")}
+                      onClick={() => handleNavigate("chat")}
                       className={cn(
                         "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600",
                         isActive("chat") && "bg-slate-100 text-blue-600",
@@ -227,7 +281,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                         )}
                       </div>
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
-                        {!isCollapsed && (
+                        {!shouldShowCollapsed && (
                           <div className="ml-2 flex items-center gap-2">
                             <p className="text-sm font-medium text-slate-900">Team Chat</p>
                             <Badge
@@ -246,12 +300,12 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
               <div className="flex flex-col p-2">
                 <button
                   type="button"
-                  onClick={() => setCurrentView("settings")}
+                  onClick={() => handleNavigate("settings")}
                   className="mt-auto flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600"
                 >
                   <Settings className="h-4 w-4 shrink-0" />
                   <motion.span variants={labelMotion} className="min-w-0 text-left">
-                    {!isCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Settings</p>}
+                    {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Settings</p>}
                   </motion.span>
                 </button>
                 <div>
@@ -263,7 +317,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                           <AvatarFallback className="text-[9px]">{initials}</AvatarFallback>
                         </Avatar>
                         <motion.span variants={labelMotion} className="flex min-w-0 flex-1 items-center gap-2">
-                          {!isCollapsed && (
+                          {!shouldShowCollapsed && (
                             <>
                               <p className="truncate text-sm font-medium text-slate-900">
                                 {displayName || "Account"}
@@ -295,7 +349,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="flex cursor-pointer items-center gap-2"
-                        onSelect={() => setCurrentView("settings")}
+                        onSelect={() => handleNavigate("settings")}
                       >
                         <UserCircle className="h-4 w-4" /> Profile & settings
                       </DropdownMenuItem>
@@ -315,6 +369,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
           </div>
         </motion.div>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </>
   );
 }

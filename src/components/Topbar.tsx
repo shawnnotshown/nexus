@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Bell, Menu, LogOut, Settings as SettingsIcon, AlertCircle, CalendarClock } from "lucide-react";
+import { Bell, LogOut, Settings as SettingsIcon, AlertCircle, CalendarClock } from "lucide-react";
 import { addDays, format, isValid, startOfDay } from "date-fns";
 import { useAppContext } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
@@ -129,7 +129,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
   }, [profileOpen, notificationsOpen]);
 
   return (
-    <header className="fixed top-5 right-5 z-30 flex items-center gap-6">
+    <header className="fixed top-5 right-5 z-30 hidden items-center gap-6 md:flex">
       <div className="flex items-center gap-6 px-1 py-1">
         <div className="relative" ref={notificationsRef}>
           <button
