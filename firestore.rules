@@ -200,6 +200,27 @@ service cloud.firestore {
         allow update, delete: if isWorkspaceMember(workspaceId);
       }
 
+      match /typingStates/{typingId} {
+        allow read: if isWorkspaceMember(workspaceId)
+          && (
+            isProjectChannelForUser(workspaceId, resource.data.channelId)
+            || isDmChannelForUser(resource.data.channelId)
+            || isWorkspaceOwner(workspaceId)
+          );
+
+        allow create, update: if isWorkspaceMember(workspaceId)
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.keys().hasAll(['channelId', 'userId', 'isTyping', 'updatedAt'])
+          && (
+            isProjectChannelForUser(workspaceId, request.resource.data.channelId)
+            || isDmChannelForUser(request.resource.data.channelId)
+            || isWorkspaceOwner(workspaceId)
+          );
+
+        allow delete: if isWorkspaceMember(workspaceId)
+          && resource.data.userId == request.auth.uid;
+      }
+
       match /projectInvites/{inviteId} {
         allow read, write: if false;
       }

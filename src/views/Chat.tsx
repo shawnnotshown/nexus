@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAppContext } from "../context/AppContext";
 import { Send, Hash, Search, MessageCircle, Plus, ChevronDown, ChevronRight, X } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { cn } from "../lib/utils";
 import { directMessageChannelId } from "../lib/chatChannels";
 import type { ProjectChannel } from "../types";
+
+const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "🎉", "👏"];
 
 function getDmPeerUserId(channelId: string, myId: string): string | null {
   if (!channelId.startsWith("dm:")) return null;
@@ -25,10 +27,13 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     messages,
     currentUser,
     sendMessage,
+    toggleMessageReaction,
     users,
     projects,
     projectChannels,
     createSubChannel,
+    setTyping,
+    typingUsersByChannel,
   } = useAppContext();
 
   const defaultChannelId = useMemo(() => {
@@ -44,6 +49,9 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const typingStopTimerRef = useRef<number | null>(null);
+  const typingChannelRef = useRef<string>("");
+  const typingActiveRef = useRef(false);
 
   useEffect(() => {
     if (!activeChannelId && defaultChannelId) {
@@ -114,6 +122,38 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
         : activeChannel.name
       : "Select a conversation";
   const inputPlaceholder = isDm && dmPeer ? `Message ${dmPeer.name}…` : "Type your message…";
+  const isUserOnline = (lastSeenAt?: string, isOnline?: boolean): boolean => {
+    if (typeof isOnline === "boolean") return isOnline;
+    if (!lastSeenAt) return false;
+    const lastSeenMs = new Date(lastSeenAt).getTime();
+    if (Number.isNaN(lastSeenMs)) return false;
+    return Date.now() - lastSeenMs <= 5 * 60 * 1000;
+  };
+  const headerStatusLabel = useMemo(() => {
+    if (!isDm || !dmPeer) return "";
+    const online = isUserOnline(dmPeer.lastSeenAt, dmPeer.isOnline);
+    if (online) return "Online";
+    if (dmPeer.lastSeenAt) {
+      return `Last seen ${formatDistanceToNowStrict(new Date(dmPeer.lastSeenAt), { addSuffix: true })}`;
+    }
+    return "Offline";
+  }, [isDm, dmPeer]);
+  const activeTypingNames = useMemo(() => {
+    if (!activeChannelId) return [];
+    const typingUserIds = typingUsersByChannel[activeChannelId] ?? [];
+    return typingUserIds
+      .filter((id) => id !== currentUser.id)
+      .map((id) => users.find((u) => u.id === id)?.name)
+      .filter((name): name is string => Boolean(name));
+  }, [activeChannelId, typingUsersByChannel, users, currentUser.id]);
+  const typingLabel = useMemo(() => {
+    if (activeTypingNames.length === 0) return "";
+    if (activeTypingNames.length === 1) return `${activeTypingNames[0]} is typing`;
+    if (activeTypingNames.length === 2) {
+      return `${activeTypingNames[0]} and ${activeTypingNames[1]} are typing`;
+    }
+    return `${activeTypingNames[0]} and ${activeTypingNames.length - 1} others are typing`;
+  }, [activeTypingNames]);
 
   useEffect(() => {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -122,10 +162,68 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
     if (inputVal.trim() && activeChannelId) {
+      if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+      if (typingActiveRef.current) {
+        void setTyping(activeChannelId, false);
+        typingActiveRef.current = false;
+      }
       void sendMessage(activeChannelId, inputVal.trim());
       setInputVal("");
     }
   };
+
+  const handleInputChange = (value: string) => {
+    setInputVal(value);
+    if (!activeChannelId) return;
+
+    if (typingChannelRef.current && typingChannelRef.current !== activeChannelId && typingActiveRef.current) {
+      void setTyping(typingChannelRef.current, false);
+      typingActiveRef.current = false;
+    }
+    typingChannelRef.current = activeChannelId;
+
+    const hasContent = value.trim().length > 0;
+    if (!hasContent) {
+      if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+      typingStopTimerRef.current = null;
+      if (typingActiveRef.current) {
+        void setTyping(activeChannelId, false);
+        typingActiveRef.current = false;
+      }
+      return;
+    }
+
+    if (!typingActiveRef.current) {
+      void setTyping(activeChannelId, true);
+      typingActiveRef.current = true;
+    }
+
+    if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+    typingStopTimerRef.current = window.setTimeout(() => {
+      void setTyping(activeChannelId, false);
+      typingActiveRef.current = false;
+      typingStopTimerRef.current = null;
+    }, 1500);
+  };
+
+  useEffect(() => {
+    if (!activeChannelId) return;
+    if (typingChannelRef.current && typingChannelRef.current !== activeChannelId && typingActiveRef.current) {
+      void setTyping(typingChannelRef.current, false);
+      typingActiveRef.current = false;
+    }
+    typingChannelRef.current = activeChannelId;
+  }, [activeChannelId, setTyping]);
+
+  useEffect(() => {
+    return () => {
+      if (typingStopTimerRef.current) window.clearTimeout(typingStopTimerRef.current);
+      if (typingChannelRef.current && typingActiveRef.current) {
+        void setTyping(typingChannelRef.current, false);
+      }
+    };
+  }, [setTyping]);
 
   const toggleProjectCollapsed = (projectId: string) => {
     setCollapsedProjects((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
@@ -155,14 +253,6 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
         <span className="truncate text-sm">{ch.isDefault ? "general" : ch.name}</span>
       </button>
     );
-  };
-
-  const isUserOnline = (lastSeenAt?: string, isOnline?: boolean): boolean => {
-    if (typeof isOnline === "boolean") return isOnline;
-    if (!lastSeenAt) return false;
-    const lastSeenMs = new Date(lastSeenAt).getTime();
-    if (Number.isNaN(lastSeenMs)) return false;
-    return Date.now() - lastSeenMs <= 5 * 60 * 1000;
   };
 
   return (
@@ -346,7 +436,20 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             ) : (
               <Hash size={20} className="text-slate-400 shrink-0" />
             )}
-            <h2 className="font-bold text-slate-900 truncate">{headerTitle}</h2>
+            <div className="min-w-0">
+              <h2 className="font-bold text-slate-900 truncate">{headerTitle}</h2>
+              {headerStatusLabel && (
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+                  <span
+                    className={cn(
+                      "inline-block h-2 w-2 rounded-full",
+                      headerStatusLabel === "Online" ? "bg-green-600" : "bg-slate-400"
+                    )}
+                  />
+                  <span className="truncate">{headerStatusLabel}</span>
+                </div>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {isSearchOpen && (
@@ -381,6 +484,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             filteredChannelMessages.map((msg, i) => {
               const author = users.find((u) => u.id === msg.userId);
               const isMe = msg.userId === currentUser.id;
+              const reactionEntries = Object.entries(msg.reactions ?? {});
               const prevMsg = filteredChannelMessages[i - 1];
               const isGrouped =
                 prevMsg &&
@@ -388,7 +492,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() < 300000;
 
               return (
-                <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
+                <div key={msg.id} className={cn("group/message flex w-full", isMe ? "justify-end" : "justify-start")}>
                   <div
                     className={cn(
                       "flex max-w-[min(100%,42rem)] gap-3",
@@ -413,15 +517,65 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                           </span>
                         </div>
                       )}
+                      <div className={cn("flex items-end gap-2", isMe ? "flex-row-reverse" : "flex-row")}>
+                        <div
+                          className={cn(
+                            "max-w-full break-words px-5 py-3 text-sm font-medium shadow-sm sm:max-w-xl",
+                            isMe
+                              ? "rounded-[1.5rem] rounded-tr-none bg-indigo-600 text-white shadow-indigo-600/20"
+                              : "rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white text-slate-700"
+                          )}
+                        >
+                          {msg.content}
+                        </div>
+                        {reactionEntries.length > 0 && (
+                          <div className={cn("flex flex-wrap gap-1", isMe ? "justify-end" : "justify-start")}>
+                            {reactionEntries.map(([emoji, userIds]) => {
+                              const safeUserIds = userIds.filter((id) => Boolean(id));
+                              const reactedByMe = safeUserIds.includes(currentUser.id);
+                              return (
+                                <button
+                                  key={`${msg.id}-${emoji}`}
+                                  type="button"
+                                  onClick={() => void toggleMessageReaction(msg.id, emoji)}
+                                  className={cn(
+                                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors",
+                                    reactedByMe
+                                      ? "border-indigo-300 bg-indigo-100 text-indigo-700"
+                                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                  )}
+                                >
+                                  <span>{emoji}</span>
+                                  <span>{safeUserIds.length}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
                       <div
                         className={cn(
-                          "max-w-full break-words px-5 py-3 text-sm font-medium shadow-sm sm:max-w-xl",
-                          isMe
-                            ? "rounded-[1.5rem] rounded-tr-none bg-indigo-600 text-white shadow-indigo-600/20"
-                            : "rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white text-slate-700"
+                          "mt-1 flex max-h-0 flex-wrap gap-1 overflow-hidden opacity-0 transition-all duration-150 pointer-events-none group-hover/message:max-h-24 group-hover/message:opacity-100 group-hover/message:pointer-events-auto group-focus-within/message:max-h-24 group-focus-within/message:opacity-100 group-focus-within/message:pointer-events-auto",
+                          isMe ? "justify-end" : "justify-start"
                         )}
                       >
-                        {msg.content}
+                        {QUICK_REACTIONS.map((emoji) => {
+                          const reactedBy = msg.reactions?.[emoji] ?? [];
+                          const reactedByMe = reactedBy.includes(currentUser.id);
+                          if (reactedByMe) return null;
+                          return (
+                            <button
+                              key={`${msg.id}-add-${emoji}`}
+                              type="button"
+                              onClick={() => void toggleMessageReaction(msg.id, emoji)}
+                              className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 transition-colors hover:bg-slate-50"
+                              aria-label={`React with ${emoji}`}
+                              title={`React with ${emoji}`}
+                            >
+                              {emoji}
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
@@ -434,6 +588,32 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
               No messages match your search.
             </p>
           )}
+          {typingLabel && (
+            <div className="flex w-full justify-start">
+              <div className="flex max-w-[min(100%,42rem)] gap-3">
+                <div className="w-10 shrink-0" />
+                <div className="rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>{typingLabel}</span>
+                    <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      />
+                      <span
+                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      />
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
           <div ref={endOfMessagesRef} />
         </div>
 
@@ -442,7 +622,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             <input
               type="text"
               value={inputVal}
-              onChange={(e) => setInputVal(e.target.value)}
+              onChange={(e) => handleInputChange(e.target.value)}
               placeholder={inputPlaceholder}
               disabled={!activeChannelId}
               className="w-full pl-6 pr-14 py-4 bg-indigo-50 border-none focus:ring-2 focus:ring-indigo-200 rounded-full outline-none transition-all shadow-inner text-sm font-medium disabled:opacity-50"

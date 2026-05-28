@@ -38,6 +38,7 @@ import {
   projectChannelFromFirestore,
   taskFromFirestore,
   messageFromFirestore,
+  toIso,
 } from "../lib/firestoreMappers";
 import {
   filterProjectsForUser,
@@ -66,6 +67,9 @@ interface AppContextType {
   updateTaskState: (taskId: string, updates: Partial<Task>) => Promise<void>;
   addComment: (taskId: string, content: string) => Promise<void>;
   sendMessage: (channelId: string, content: string) => Promise<void>;
+  toggleMessageReaction: (messageId: string, emoji: string) => Promise<void>;
+  setTyping: (channelId: string, isTyping: boolean) => Promise<void>;
+  typingUsersByChannel: Record<string, string[]>;
   addXP: (amount: number) => Promise<void>;
   addProject: (project: Omit<Project, "id">) => Promise<void>;
   deleteProject?: (id: string) => Promise<void>;
@@ -92,6 +96,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [allProjects, setAllProjects] = useState<Project[]>([]);
   const [allTasks, setAllTasks] = useState<Task[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [typingUsersByChannel, setTypingUsersByChannel] = useState<Record<string, string[]>>({});
   const [projectChannels, setProjectChannels] = useState<ProjectChannel[]>([]);
   const [activeModals, setActiveModals] = useState<{ [key: string]: boolean }>({});
   const [projectsRetryTick, setProjectsRetryTick] = useState(0);
@@ -169,6 +174,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setAllProjects([]);
     setAllTasks([]);
     setMessages([]);
+    setTypingUsersByChannel({});
     setProjectChannels([]);
     setMembersSnapshotReady(false);
     console.debug("[AppContext] subscribing to members collection", { workspaceId, uid: user?.uid });
@@ -190,6 +196,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         setAllProjects([]);
         setAllTasks([]);
         setMessages([]);
+        setTypingUsersByChannel({});
         setProjectChannels([]);
         setMembersSnapshotReady(true);
       }
@@ -398,6 +405,60 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
     return () => unsubs.forEach((u) => u());
   }, [db, workspaceId, user, users, allProjects, projectChannels, membersSnapshotReady, hasWorkspaceAccess]);
+
+  // Typing states: scoped by channelId and user project membership.
+  useEffect(() => {
+    if (!db || !workspaceId || !user || !membersSnapshotReady || !hasWorkspaceAccess) {
+      if (!hasWorkspaceAccess) setTypingUsersByChannel({});
+      return;
+    }
+
+    const uid = user.uid;
+
+    const projectPeerIds = new Set<string>();
+    for (const p of allProjects) {
+      for (const memberId of p.team) {
+        if (memberId !== uid) projectPeerIds.add(memberId);
+      }
+    }
+
+    const channelIds: string[] = projectChannels.map((ch) => ch.id);
+    for (const peerId of projectPeerIds) {
+      channelIds.push(directMessageChannelId(uid, peerId));
+    }
+
+    if (channelIds.length === 0) {
+      setTypingUsersByChannel({});
+      return;
+    }
+
+    setTypingUsersByChannel({});
+    const unsubs = channelIds.map((channelId) =>
+      onSnapshot(
+        query(
+          collection(db, "workspaces", workspaceId, "typingStates"),
+          where("channelId", "==", channelId)
+        ),
+        (snap) => {
+          const nowMs = Date.now();
+          const typingIds = new Set<string>();
+          snap.forEach((d) => {
+            const data = d.data() as Record<string, unknown>;
+            const userId = typeof data.userId === "string" ? data.userId : "";
+            const isTyping = data.isTyping === true;
+            if (!userId || userId === uid || !isTyping) return;
+            const updatedAtMs = new Date(toIso(data.updatedAt)).getTime();
+            if (Number.isNaN(updatedAtMs) || nowMs - updatedAtMs > 10000) return;
+            typingIds.add(userId);
+          });
+          setTypingUsersByChannel((prev) => ({ ...prev, [channelId]: Array.from(typingIds) }));
+        },
+        (err) => console.error(`[AppContext] typingStates listener (${channelId}):`, err)
+      )
+    );
+
+    return () => unsubs.forEach((u) => u());
+  }, [db, workspaceId, user, allProjects, projectChannels, membersSnapshotReady, hasWorkspaceAccess]);
 
   const currentUser = useMemo((): User => {
     const u = user;
@@ -666,6 +727,59 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [db, workspaceId, user]
   );
 
+  const toggleMessageReaction = useCallback(
+    async (messageId: string, emoji: string) => {
+      if (!db || !workspaceId || !user || !messageId) return;
+      const reaction = emoji.trim();
+      if (!reaction) return;
+      const ref = doc(db, "workspaces", workspaceId, "messages", messageId);
+      await runTransaction(db, async (txn) => {
+        const snap = await txn.get(ref);
+        if (!snap.exists()) return;
+        const data = snap.data() as Record<string, unknown>;
+        const rawReactions = data.reactions;
+        const reactions: Record<string, string[]> = {};
+        if (rawReactions && typeof rawReactions === "object") {
+          Object.entries(rawReactions as Record<string, unknown>).forEach(([key, value]) => {
+            if (!Array.isArray(value)) return;
+            reactions[key] = value.filter((entry): entry is string => typeof entry === "string");
+          });
+        }
+        const currentUsers = reactions[reaction] ?? [];
+        const hasReacted = currentUsers.includes(user.uid);
+        const nextUsers = hasReacted
+          ? currentUsers.filter((uid) => uid !== user.uid)
+          : [...currentUsers, user.uid];
+        if (nextUsers.length === 0) {
+          delete reactions[reaction];
+        } else {
+          reactions[reaction] = nextUsers;
+        }
+        txn.update(ref, { reactions });
+      });
+    },
+    [db, workspaceId, user]
+  );
+
+  const setTyping = useCallback(
+    async (channelId: string, isTyping: boolean) => {
+      if (!db || !workspaceId || !user || !channelId) return;
+      const safeChannelId = encodeURIComponent(channelId);
+      const typingId = `${user.uid}__${safeChannelId}`;
+      await setDoc(
+        doc(db, "workspaces", workspaceId, "typingStates", typingId),
+        {
+          channelId,
+          userId: user.uid,
+          isTyping,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    },
+    [db, workspaceId, user]
+  );
+
   return (
     <AppContext.Provider
       value={{
@@ -681,6 +795,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         updateTaskState,
         addComment,
         sendMessage,
+        toggleMessageReaction,
+        setTyping,
+        typingUsersByChannel,
         addXP,
         addProject,
         deleteProject,

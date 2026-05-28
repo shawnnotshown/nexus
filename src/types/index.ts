@@ -70,6 +70,7 @@ export interface Message {
   userId: string;
   content: string;
   createdAt: string;
+  reactions?: Record<string, string[]>;
 }
 
 /** Project-scoped team chat channel (main or subchannel). */

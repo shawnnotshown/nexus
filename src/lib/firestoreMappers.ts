@@ -188,12 +188,26 @@ export function projectChannelFromFirestore(id: string, data: Record<string, unk
 }
 
 export function messageFromFirestore(id: string, data: Record<string, unknown>): Message {
+  const rawReactions = data.reactions;
+  const reactions: Record<string, string[]> = {};
+  if (rawReactions && typeof rawReactions === "object") {
+    Object.entries(rawReactions as Record<string, unknown>).forEach(([emoji, users]) => {
+      if (Array.isArray(users)) {
+        const userIds = users
+          .filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0)
+          .map((entry) => entry.trim());
+        if (userIds.length > 0) reactions[emoji] = userIds;
+      }
+    });
+  }
+
   return {
     id,
     channelId: String(data.channelId ?? "general"),
     userId: String(data.userId ?? ""),
     content: String(data.content ?? ""),
     createdAt: toIso(data.createdAt),
+    reactions,
   };
 }
 
