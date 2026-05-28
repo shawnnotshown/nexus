@@ -20,8 +20,15 @@ export const WorkProgressBar: React.FC<Props> = ({
         <span>{label}</span>
         <span>{p}%</span>
       </div>
-      <div className={`h-2 w-full ${trackClassName} rounded-full overflow-hidden`}>
-        <div className="h-full bg-indigo-500 rounded-full transition-[width] duration-300" style={{ width: `${p}%` }} />
+      <div className="w-full rounded-full bg-white/70 p-[2px] shadow-[0_1px_2px_rgba(15,23,42,0.06)]">
+        <div
+          className={`h-2 w-full ${trackClassName} rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(15,23,42,0.12)]`}
+        >
+          <div
+            className="h-full bg-indigo-500 rounded-full transition-[width] duration-300"
+            style={{ width: `${p}%` }}
+          />
+        </div>
       </div>
     </div>
   );
