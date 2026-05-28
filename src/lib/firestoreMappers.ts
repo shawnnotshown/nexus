@@ -122,6 +122,8 @@ export function memberDocToUser(uid: string, data: Record<string, unknown>): Use
     title: optionalString(data.title),
     location: optionalString(data.location),
     bio: optionalString(data.bio),
+    isOnline: typeof data.isOnline === "boolean" ? data.isOnline : undefined,
+    lastSeenAt: data.lastSeenAt != null ? toIso(data.lastSeenAt) : undefined,
   };
 }
 

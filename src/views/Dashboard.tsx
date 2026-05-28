@@ -31,7 +31,8 @@ function dueSortKey(iso: string | undefined): number {
 export const Dashboard: React.FC<{
   onProjectClick: (id: string) => void;
   onOpenMyTasks: (focus: MyTasksRowFocus) => void;
-}> = ({ onProjectClick, onOpenMyTasks }) => {
+  onViewAllProjects: () => void;
+}> = ({ onProjectClick, onOpenMyTasks, onViewAllProjects }) => {
   const { currentUser, projects, tasks, users } = useAppContext();
   const { user } = useAuth();
   const { workspaceId } = useWorkspace();
@@ -86,13 +87,13 @@ export const Dashboard: React.FC<{
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Tasks", value: totalAssigned, icon: CheckCircle, color: "text-blue-600", bg: "bg-blue-100" },
-          { label: "Completed", value: completedTasks, icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-100" },
-          { label: "Pending", value: pendingTasks, icon: Clock, color: "text-amber-600", bg: "bg-amber-100" },
-          { label: "Urgent", value: urgentTasks, icon: AlertCircle, color: "text-red-600", bg: "bg-red-100" },
+          { label: "Total Tasks", value: totalAssigned, icon: CheckCircle, color: "text-blue-600" },
+          { label: "Completed", value: completedTasks, icon: TrendingUp, color: "text-emerald-600" },
+          { label: "Pending", value: pendingTasks, icon: Clock, color: "text-amber-600" },
+          { label: "Urgent", value: urgentTasks, icon: AlertCircle, color: "text-red-600" },
         ].map((stat, i) => (
           <div key={i} className="bg-white p-5 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 flex items-center gap-4 hover:shadow-indigo-100/80 transition-shadow">
-            <div className={`p-3 rounded-2xl ${stat.bg} ${stat.color}`}>
+            <div className={stat.color}>
               <stat.icon size={24} />
             </div>
             <div>
@@ -108,7 +109,13 @@ export const Dashboard: React.FC<{
           <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-indigo-900">Active Projects</h2>
-              <button className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-200">View All</button>
+              <button
+                type="button"
+                onClick={onViewAllProjects}
+                className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-200"
+              >
+                View All
+              </button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {projects.map((project) => {
@@ -142,7 +149,6 @@ export const Dashboard: React.FC<{
           <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-indigo-900">My Upcoming Tasks</h2>
-              <button className="bg-rose-500 text-white w-8 h-8 rounded-full font-bold shadow-lg shadow-rose-200 flex items-center justify-center">+</button>
             </div>
             <div className="space-y-3">
               {upcomingRows.slice(0, 5).map((row) => {

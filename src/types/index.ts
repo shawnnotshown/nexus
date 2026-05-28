@@ -13,6 +13,8 @@ export interface User {
   title?: string;
   location?: string;
   bio?: string;
+  isOnline?: boolean;
+  lastSeenAt?: string;
 }
 
 export interface Badge {

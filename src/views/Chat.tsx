@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAppContext } from "../context/AppContext";
-import { Send, Hash, Search, MessageCircle, Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { Send, Hash, Search, MessageCircle, Plus, ChevronDown, ChevronRight, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "../lib/utils";
 import { directMessageChannelId } from "../lib/chatChannels";
@@ -41,6 +41,8 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
   const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
   const [addingSubForProject, setAddingSubForProject] = useState<string | null>(null);
   const [subChannelName, setSubChannelName] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -87,6 +89,16 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
   }, [projectChannels]);
 
   const activeChannelMessages = messages.filter((m) => m.channelId === activeChannelId);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredChannelMessages = useMemo(() => {
+    if (!normalizedSearch) return activeChannelMessages;
+    return activeChannelMessages.filter((msg) => {
+      const authorName = users.find((u) => u.id === msg.userId)?.name?.toLowerCase() ?? "";
+      return (
+        msg.content.toLowerCase().includes(normalizedSearch) || authorName.includes(normalizedSearch)
+      );
+    });
+  }, [activeChannelMessages, normalizedSearch, users]);
   const isDm = activeChannelId.startsWith("dm:");
   const dmPeerId = isDm ? getDmPeerUserId(activeChannelId, currentUser.id) : null;
   const dmPeer = dmPeerId ? users.find((u) => u.id === dmPeerId) : undefined;
@@ -145,8 +157,16 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     );
   };
 
+  const isUserOnline = (lastSeenAt?: string, isOnline?: boolean): boolean => {
+    if (typeof isOnline === "boolean") return isOnline;
+    if (!lastSeenAt) return false;
+    const lastSeenMs = new Date(lastSeenAt).getTime();
+    if (Number.isNaN(lastSeenMs)) return false;
+    return Date.now() - lastSeenMs <= 5 * 60 * 1000;
+  };
+
   return (
-    <div className="flex h-full bg-white rounded-[2.5rem] border border-indigo-50 overflow-hidden shadow-xl shadow-indigo-100/50">
+    <div className="flex h-full bg-white overflow-hidden">
       {/* Sidebar Channels */}
       <div className="w-72 border-r border-indigo-50 bg-indigo-50/30 flex flex-col h-full hidden md:flex">
         <div className="p-6 border-b border-indigo-50">
@@ -241,6 +261,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             dmPeers.map((u) => {
               const dmId = directMessageChannelId(currentUser.id, u.id);
               const isActive = activeChannelId === dmId;
+              const online = isUserOnline(u.lastSeenAt, u.isOnline);
               return (
                 <button
                   key={u.id}
@@ -258,7 +279,13 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                         className="w-6 h-6 rounded border border-slate-300 object-cover"
                         alt={u.name}
                       />
-                      <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
+                      <span
+                        className={cn(
+                          "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-white rounded-full",
+                          online ? "bg-emerald-500" : "bg-slate-400"
+                        )}
+                        title={online ? "Online" : "Offline"}
+                      />
                     </div>
                     <span
                       className={cn(
@@ -312,7 +339,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             )}
           </select>
         </div>
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white shadow-sm z-10">
+        <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shadow-sm z-10">
           <div className="flex items-center gap-2 min-w-0">
             {isDm ? (
               <MessageCircle size={20} className="text-slate-400 shrink-0" />
@@ -321,8 +348,27 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             )}
             <h2 className="font-bold text-slate-900 truncate">{headerTitle}</h2>
           </div>
-          <div className="text-slate-400 hover:text-slate-600 cursor-pointer">
-            <Search size={18} />
+          <div className="flex items-center gap-2">
+            {isSearchOpen && (
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search messages..."
+                className="w-48 sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (isSearchOpen) setSearchQuery("");
+                setIsSearchOpen((prev) => !prev);
+              }}
+              className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-md hover:bg-slate-100 transition-colors"
+              aria-label={isSearchOpen ? "Close search" : "Open search"}
+            >
+              {isSearchOpen ? <X size={18} /> : <Search size={18} />}
+            </button>
           </div>
         </div>
 
@@ -332,10 +378,10 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
               Select a project channel or direct message to start chatting.
             </p>
           ) : (
-            activeChannelMessages.map((msg, i) => {
+            filteredChannelMessages.map((msg, i) => {
               const author = users.find((u) => u.id === msg.userId);
               const isMe = msg.userId === currentUser.id;
-              const prevMsg = activeChannelMessages[i - 1];
+              const prevMsg = filteredChannelMessages[i - 1];
               const isGrouped =
                 prevMsg &&
                 prevMsg.userId === msg.userId &&
@@ -382,6 +428,11 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 </div>
               );
             })
+          )}
+          {activeChannelId && filteredChannelMessages.length === 0 && (
+            <p className="text-center text-sm text-slate-500 py-12">
+              No messages match your search.
+            </p>
           )}
           <div ref={endOfMessagesRef} />
         </div>

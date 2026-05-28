@@ -33,6 +33,7 @@ function LayoutContent() {
   const [lastSeenChatAt, setLastSeenChatAt] = useState(0);
   const [chatPopupMessage, setChatPopupMessage] = useState<Message | null>(null);
   const latestMessageIdRef = useRef<string | null>(null);
+  const hasInitializedMessageTrackerRef = useRef(false);
 
   const incomingMessages = useMemo(
     () => messages.filter((message) => message.userId !== currentUser.id),
@@ -54,20 +55,30 @@ function LayoutContent() {
   useEffect(() => {
     if (!latestIncomingMessage) return;
 
+    const latestAt = toTimestamp(latestIncomingMessage.createdAt);
+    const previousId = latestMessageIdRef.current;
+
+    if (!hasInitializedMessageTrackerRef.current) {
+      hasInitializedMessageTrackerRef.current = true;
+      latestMessageIdRef.current = latestIncomingMessage.id;
+      // Establish the current latest message as the baseline so historical
+      // messages don't appear as unread on first load.
+      setLastSeenChatAt(latestAt);
+      return;
+    }
+
     if (currentView === "chat") {
-      setLastSeenChatAt(toTimestamp(latestIncomingMessage.createdAt));
+      setLastSeenChatAt(latestAt);
       setChatPopupMessage(null);
       latestMessageIdRef.current = latestIncomingMessage.id;
       return;
     }
 
-    const latestAt = toTimestamp(latestIncomingMessage.createdAt);
     if (latestAt <= lastSeenChatAt) return;
 
-    const previousId = latestMessageIdRef.current;
-    latestMessageIdRef.current = latestIncomingMessage.id;
-    if (!previousId || previousId === latestIncomingMessage.id) return;
+    if (previousId === latestIncomingMessage.id) return;
 
+    latestMessageIdRef.current = latestIncomingMessage.id;
     setChatPopupMessage(latestIncomingMessage);
   }, [currentView, lastSeenChatAt, latestIncomingMessage]);
 
@@ -102,6 +113,10 @@ function LayoutContent() {
     setCurrentView("my-tasks");
   };
 
+  const navigateToProjects = () => {
+    setCurrentView("projects");
+  };
+
   const popupAuthor = chatPopupMessage
     ? users.find((user) => user.id === chatPopupMessage.userId)
     : null;
@@ -109,7 +124,13 @@ function LayoutContent() {
   const renderView = () => {
     switch (currentView) {
       case "dashboard":
-        return <Dashboard onProjectClick={navigateToProject} onOpenMyTasks={navigateToMyTasks} />;
+        return (
+          <Dashboard
+            onProjectClick={navigateToProject}
+            onOpenMyTasks={navigateToMyTasks}
+            onViewAllProjects={navigateToProjects}
+          />
+        );
       case "projects":
         return <Projects onProjectClick={navigateToProject} />;
       case "project-detail":
@@ -131,7 +152,13 @@ function LayoutContent() {
       case "settings":
         return <Settings />;
       default:
-        return <Dashboard onProjectClick={navigateToProject} onOpenMyTasks={navigateToMyTasks} />;
+        return (
+          <Dashboard
+            onProjectClick={navigateToProject}
+            onOpenMyTasks={navigateToMyTasks}
+            onViewAllProjects={navigateToProjects}
+          />
+        );
     }
   };
 
@@ -143,17 +170,19 @@ function LayoutContent() {
           hasUnreadChat={hasUnreadChat}
         />
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <Topbar
-            onOpenSettings={() => setCurrentView("settings")}
-            onNavigateToMyTasks={(focus) => navigateToMyTasks(focus)}
-          />
           <main
             className={
-              currentView === "project-detail"
+              currentView === "project-detail" || currentView === "chat"
                 ? "min-h-0 flex-1 overflow-auto bg-slate-100"
                 : "min-h-0 flex-1 overflow-auto bg-slate-100 p-6 md:p-8"
             }
           >
+            {currentView === "dashboard" && (
+              <Topbar
+                onOpenSettings={() => setCurrentView("settings")}
+                onNavigateToMyTasks={(focus) => navigateToMyTasks(focus)}
+              />
+            )}
             {renderView()}
           </main>
         </div>

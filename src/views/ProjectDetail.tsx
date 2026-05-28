@@ -296,7 +296,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     switch (activeWidget) {
       case "kanban":
         return (
-          <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
                 <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
@@ -319,7 +319,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
            const task = list?.tasks.find(t => t.id === activeTodoTask);
            if (task && list) {
               return (
-                 <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in slide-in-from-right-4 duration-200 overflow-hidden relative">
+                 <div className="h-full flex flex-col animate-in slide-in-from-right-4 duration-200 overflow-hidden relative px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
                     <div className="flex items-center justify-between mb-8">
                       <div className="flex items-center gap-3">
                         <button onClick={() => setActiveTodoTask(null)} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors">
@@ -502,7 +502,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                )
              : 0;
            return (
-              <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in slide-in-from-right-4 duration-200">
+              <div className="h-full flex flex-col animate-in slide-in-from-right-4 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
                 <div className="flex items-center justify-between mb-8">
                   <div className="flex items-center gap-3">
                     <button onClick={() => setActiveTodoList(null)} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-200 hover:text-slate-800 transition-colors">
@@ -670,7 +670,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
         }
 
         return (
-          <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
             <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
                 <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
@@ -747,7 +747,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
         if (activeThread) {
           const author = users.find((u) => u.id === activeThread.userId);
           return (
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <button
@@ -817,7 +817,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
         }
         if (showNewThreadForm) {
           return (
-            <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
+            <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
                   <MessageSquare size={20} className="stroke-[3px]" /> New thread
@@ -865,7 +865,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
           );
         }
         return (
-          <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
              <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
                 <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
@@ -922,7 +922,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
       }
       case "schedule":
          return (
-          <div className="bg-white rounded-[2rem] p-8 shadow-xl border border-indigo-50 h-full flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
              <div className="flex items-center justify-between mb-8">
               <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
                 <div className="w-10 h-10 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center">
@@ -1044,15 +1044,15 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
       className={
         activeWidget
           ? "relative flex h-full min-h-0 flex-col overflow-hidden"
-          : "relative px-6 pb-12 pt-6 md:px-8"
+          : "relative px-6 pb-12 pt-2 md:px-8 md:pt-3"
       }
     >
       {/* Header Utilities */}
       {!activeWidget && (
-        <div className="mb-4 flex shrink-0 justify-between gap-4" onClick={() => setShowProjectMenu(false)}>
+        <div className="mb-2 flex shrink-0 justify-between gap-4" onClick={() => setShowProjectMenu(false)}>
           <button 
             onClick={onBack}
-            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 mb-3 transition-colors h-fit"
+            className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 mb-1 transition-colors h-fit"
           >
             <ArrowLeft size={16} className="stroke-[3px]" />
             Back to Projects
@@ -1084,7 +1084,19 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
       )}
 
       {activeWidget ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 md:px-8">
+        <div
+          className={
+            activeWidget === "todos"
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
+              : activeWidget === "messages"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
+              : activeWidget === "schedule"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
+              : activeWidget === "kanban"
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
+              : "flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 md:px-8"
+          }
+        >
           {renderExpandedWidget()}
         </div>
       ) : (
@@ -1426,7 +1438,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 </ol>
                 <button
                   type="button"
-                  disabled={inviteSubmitAction !== null}
+                  disabled={inviteSubmitAction === "copy"}
                   onClick={() => void submitInvite(false)}
                   className="w-full inline-flex items-center justify-center gap-2 bg-indigo-600 text-white font-bold py-3.5 px-4 rounded-xl hover:bg-indigo-700 transition-colors shadow-md shadow-indigo-200/50 disabled:opacity-50 disabled:pointer-events-none mt-auto"
                 >
@@ -1472,7 +1484,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 />
                 <button
                   type="button"
-                  disabled={inviteSubmitAction !== null}
+                  disabled={inviteSubmitAction === "email"}
                   onClick={() => void submitInvite(true)}
                   className="w-full inline-flex items-center justify-center gap-2 border-2 border-indigo-200 bg-indigo-50/80 text-indigo-800 font-bold py-3.5 px-4 rounded-xl hover:bg-indigo-100 hover:border-indigo-300 transition-colors disabled:opacity-50 disabled:pointer-events-none mt-auto"
                 >

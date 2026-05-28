@@ -100,6 +100,63 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const db = getFirebaseDb();
 
   useEffect(() => {
+    if (!db || !workspaceId || !user) return;
+
+    const memberRef = doc(db, "workspaces", workspaceId, "members", user.uid);
+
+    const markPresence = async (isOnline: boolean) => {
+      try {
+        await setDoc(
+          memberRef,
+          {
+            isOnline,
+            lastSeenAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+      } catch (err) {
+        console.warn("[AppContext] presence update failed", err);
+      }
+    };
+
+    void markPresence(true);
+
+    const heartbeat = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        void markPresence(true);
+      }
+    }, 60000);
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void markPresence(true);
+      } else {
+        void markPresence(false);
+      }
+    };
+
+    const onOnline = () => {
+      void markPresence(true);
+    };
+
+    const onOffline = () => {
+      void markPresence(false);
+    };
+
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      void markPresence(false);
+    };
+  }, [db, workspaceId, user]);
+
+  useEffect(() => {
     if (!db || !workspaceId) {
       setMembersSnapshotReady(false);
       setUsers([]);

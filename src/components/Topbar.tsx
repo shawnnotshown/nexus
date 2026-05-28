@@ -129,14 +129,8 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
   }, [profileOpen, notificationsOpen]);
 
   return (
-    <header className="h-20 flex items-center justify-between px-8 bg-white border-b border-indigo-100 sticky top-0 z-20 shadow-sm shadow-indigo-100/20">
-      <div className="flex items-center gap-4 flex-1">
-        <button className="md:hidden text-indigo-900">
-          <Menu size={24} />
-        </button>
-      </div>
-
-      <div className="flex items-center gap-6">
+    <header className="fixed top-5 right-5 z-30 flex items-center gap-6">
+      <div className="flex items-center gap-6 px-1 py-1">
         <div className="relative" ref={notificationsRef}>
           <button
             type="button"
@@ -147,7 +141,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
             aria-haspopup="menu"
             aria-expanded={notificationsOpen}
             aria-label="Notifications"
-            className="relative w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold border-2 border-indigo-200 hover:bg-indigo-200 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2"
+            className="relative p-1 text-indigo-600 hover:text-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 rounded-md"
           >
             <Bell size={18} />
             {notificationRows.length > 0 && (
