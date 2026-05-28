@@ -61,6 +61,16 @@ export const Dashboard: React.FC<{
     assignedTodoRows.filter(({ item }) => !item.completed).length;
 
   const urgentTasks = myKanbanTasks.filter((t) => t.priority === "urgent" && t.status !== "done").length;
+  const completionRate = totalAssigned ? Math.round((completedTasks / totalAssigned) * 100) : 0;
+
+  const myProjectsCount = useMemo(() => {
+    const projectSet = new Set<string>();
+    myKanbanTasks.forEach((task) => {
+      if (task.projectId) projectSet.add(task.projectId);
+    });
+    assignedTodoRows.forEach((row) => projectSet.add(row.projectId));
+    return projectSet.size;
+  }, [myKanbanTasks, assignedTodoRows]);
 
   const upcomingRows: UpcomingRow[] = useMemo(() => {
     const kanban: UpcomingRow[] = myKanbanTasks
@@ -75,6 +85,14 @@ export const Dashboard: React.FC<{
       return dueSortKey(da) - dueSortKey(db);
     });
   }, [myKanbanTasks, assignedTodoRows]);
+  const nearestDueRow = upcomingRows[0];
+
+  const bentoStatCards = [
+    { label: "Total Tasks", value: totalAssigned, icon: CheckCircle, color: "text-blue-600", span: "md:col-span-3" },
+    { label: "Completed", value: completedTasks, icon: TrendingUp, color: "text-emerald-600", span: "md:col-span-3" },
+    { label: "Pending", value: pendingTasks, icon: Clock, color: "text-amber-600", span: "md:col-span-3" },
+    { label: "Urgent", value: urgentTasks, icon: AlertCircle, color: "text-rose-600", span: "md:col-span-3" },
+  ] as const;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -85,14 +103,12 @@ export const Dashboard: React.FC<{
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Tasks", value: totalAssigned, icon: CheckCircle, color: "text-blue-600" },
-          { label: "Completed", value: completedTasks, icon: TrendingUp, color: "text-emerald-600" },
-          { label: "Pending", value: pendingTasks, icon: Clock, color: "text-amber-600" },
-          { label: "Urgent", value: urgentTasks, icon: AlertCircle, color: "text-red-600" },
-        ].map((stat, i) => (
-          <div key={i} className="bg-white p-5 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 flex items-center gap-4 hover:shadow-indigo-100/80 transition-shadow">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        {bentoStatCards.map((stat, i) => (
+          <div
+            key={i}
+            className={`bg-white p-5 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 flex items-center gap-4 hover:shadow-indigo-100/80 transition-shadow ${stat.span}`}
+          >
             <div className={stat.color}>
               <stat.icon size={24} />
             </div>
@@ -102,11 +118,58 @@ export const Dashboard: React.FC<{
             </div>
           </div>
         ))}
+
+        <div className="bg-white p-6 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 md:col-span-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black uppercase tracking-wide text-indigo-500">Completion Rate</h3>
+            <span className="text-xs font-semibold text-slate-500">{myProjectsCount} active projects</span>
+          </div>
+          <p className="text-4xl font-black text-indigo-900 mt-3">{completionRate}%</p>
+          <p className="text-sm text-slate-500 mt-1">Across your assigned kanban + to-do work.</p>
+          <div className="mt-4">
+            <WorkProgressBar
+              label="Progress"
+              percent={completionRate}
+              trackClassName="bg-slate-200"
+            />
+          </div>
+        </div>
+
+        <div className="bg-white p-6 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 md:col-span-6">
+          <h3 className="text-sm font-black uppercase tracking-wide text-indigo-500">Next Deadline</h3>
+          {nearestDueRow ? (
+            <div className="mt-4 space-y-2">
+              <p className="text-lg font-bold text-indigo-900">
+                {nearestDueRow.kind === "kanban" ? nearestDueRow.task.title : nearestDueRow.item.title}
+              </p>
+              <p className="text-sm text-slate-500">
+                Due {formatDueLabel(nearestDueRow.kind === "kanban" ? nearestDueRow.task.dueDate : nearestDueRow.item.dueDate)}
+              </p>
+              <button
+                type="button"
+                onClick={() =>
+                  nearestDueRow.kind === "kanban"
+                    ? onOpenMyTasks({ kind: "kanban", taskId: nearestDueRow.task.id })
+                    : onOpenMyTasks({
+                        kind: "todo",
+                        projectId: nearestDueRow.projectId,
+                        itemId: nearestDueRow.item.id,
+                      })
+                }
+                className="mt-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-200"
+              >
+                Open Task
+              </button>
+            </div>
+          ) : (
+            <div className="mt-4 text-slate-500 text-sm">No upcoming deadlines right now.</div>
+          )}
+        </div>
       </div>
 
-      <div className="space-y-6 pb-8">
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pb-8">
           {/* Active Projects */}
-          <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8">
+          <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8 md:col-span-7">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-indigo-900">Active Projects</h2>
               <button
@@ -146,7 +209,7 @@ export const Dashboard: React.FC<{
           </div>
 
           {/* Recent Tasks */}
-          <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8">
+          <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8 md:col-span-5">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-indigo-900">My Upcoming Tasks</h2>
             </div>
@@ -216,9 +279,6 @@ export const Dashboard: React.FC<{
                         </div>
                       </div>
                     </div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded uppercase bg-violet-100 text-violet-600">
-                      to-do
-                    </span>
                   </div>
                 );
               })}
@@ -228,6 +288,44 @@ export const Dashboard: React.FC<{
                   <p>All caught up! Great job.</p>
                 </div>
               )}
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-500 rounded-[2.5rem] shadow-xl shadow-indigo-200/50 p-8 text-white md:col-span-12">
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-100">Quick Actions</p>
+                <h3 className="text-2xl font-black mt-2">Keep momentum going today</h3>
+                <p className="text-indigo-100 mt-2 text-sm">
+                  Jump directly to projects or tasks and keep your sprint moving.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={onViewAllProjects}
+                  className="bg-white text-indigo-700 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wide hover:bg-indigo-50"
+                >
+                  Browse Projects
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    nearestDueRow
+                      ? nearestDueRow.kind === "kanban"
+                        ? onOpenMyTasks({ kind: "kanban", taskId: nearestDueRow.task.id })
+                        : onOpenMyTasks({
+                            kind: "todo",
+                            projectId: nearestDueRow.projectId,
+                            itemId: nearestDueRow.item.id,
+                          })
+                      : onViewAllProjects()
+                  }
+                  className="bg-indigo-800/40 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-wide border border-indigo-200/30 hover:bg-indigo-800/60"
+                >
+                  View My Tasks
+                </button>
+              </div>
             </div>
           </div>
       </div>
