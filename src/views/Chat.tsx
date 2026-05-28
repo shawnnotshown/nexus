@@ -282,7 +282,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                       <span
                         className={cn(
                           "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-white rounded-full",
-                          online ? "bg-emerald-500" : "bg-slate-400"
+                          online ? "bg-green-700" : "bg-slate-400"
                         )}
                         title={online ? "Online" : "Offline"}
                       />
