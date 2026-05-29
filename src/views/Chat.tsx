@@ -80,6 +80,25 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     [users, projectPeerIds]
   );
 
+  const sortedDmPeers = useMemo(() => {
+    const latestByChannel = new Map<string, number>();
+    for (const m of messages) {
+      if (!m.channelId.startsWith("dm:")) continue;
+      const t = new Date(m.createdAt).getTime();
+      if (Number.isNaN(t)) continue;
+      const prev = latestByChannel.get(m.channelId) ?? 0;
+      if (t > prev) latestByChannel.set(m.channelId, t);
+    }
+    return [...dmPeers].sort((a, b) => {
+      const dmA = directMessageChannelId(currentUser.id, a.id);
+      const dmB = directMessageChannelId(currentUser.id, b.id);
+      const ta = latestByChannel.get(dmA) ?? 0;
+      const tb = latestByChannel.get(dmB) ?? 0;
+      if (tb !== ta) return tb - ta;
+      return a.name.localeCompare(b.name);
+    });
+  }, [dmPeers, messages, currentUser.id]);
+
   const channelsByProject = useMemo(() => {
     const map = new Map<string, ProjectChannel[]>();
     for (const ch of projectChannels) {
@@ -348,7 +367,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
           {dmPeers.length === 0 ? (
             <p className="px-2 text-sm text-slate-500">No teammates on your projects yet.</p>
           ) : (
-            dmPeers.map((u) => {
+            sortedDmPeers.map((u) => {
               const dmId = directMessageChannelId(currentUser.id, u.id);
               const isActive = activeChannelId === dmId;
               const online = isUserOnline(u.lastSeenAt, u.isOnline);
@@ -371,8 +390,8 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                       />
                       <span
                         className={cn(
-                          "absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 border-2 border-white rounded-full",
-                          online ? "bg-green-700" : "bg-slate-400"
+                          "absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 border-white rounded-full",
+                          online ? "bg-green-500" : "bg-slate-400"
                         )}
                         title={online ? "Online" : "Offline"}
                       />
@@ -418,9 +437,9 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 </optgroup>
               );
             })}
-            {dmPeers.length > 0 && (
+            {sortedDmPeers.length > 0 && (
               <optgroup label="Direct messages">
-                {dmPeers.map((u) => (
+                {sortedDmPeers.map((u) => (
                   <option key={u.id} value={directMessageChannelId(currentUser.id, u.id)}>
                     {u.name}
                   </option>
@@ -442,11 +461,18 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
                   <span
                     className={cn(
-                      "inline-block h-2 w-2 rounded-full",
-                      headerStatusLabel === "Online" ? "bg-green-600" : "bg-slate-400"
+                      "inline-block h-2.5 w-2.5 rounded-full shrink-0",
+                      headerStatusLabel === "Online" ? "bg-green-500" : "bg-slate-400"
                     )}
                   />
-                  <span className="truncate">{headerStatusLabel}</span>
+                  <span
+                    className={cn(
+                      "truncate",
+                      headerStatusLabel === "Online" ? "text-green-600" : "text-slate-500"
+                    )}
+                  >
+                    {headerStatusLabel}
+                  </span>
                 </div>
               )}
             </div>
@@ -492,7 +518,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() < 300000;
 
               return (
-                <div key={msg.id} className={cn("group/message flex w-full", isMe ? "justify-end" : "justify-start")}>
+                <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
                   <div
                     className={cn(
                       "flex max-w-[min(100%,42rem)] gap-3",
@@ -517,65 +543,82 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                           </span>
                         </div>
                       )}
-                      <div className={cn("flex items-end gap-2", isMe ? "flex-row-reverse" : "flex-row")}>
-                        <div
-                          className={cn(
-                            "max-w-full break-words px-5 py-3 text-sm font-medium shadow-sm sm:max-w-xl",
-                            isMe
-                              ? "rounded-[1.5rem] rounded-tr-none bg-indigo-600 text-white shadow-indigo-600/20"
-                              : "rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white text-slate-700"
-                          )}
-                        >
-                          {msg.content}
-                        </div>
-                        {reactionEntries.length > 0 && (
-                          <div className={cn("flex flex-wrap gap-1", isMe ? "justify-end" : "justify-start")}>
-                            {reactionEntries.map(([emoji, userIds]) => {
-                              const safeUserIds = userIds.filter((id) => Boolean(id));
-                              const reactedByMe = safeUserIds.includes(currentUser.id);
-                              return (
-                                <button
-                                  key={`${msg.id}-${emoji}`}
-                                  type="button"
-                                  onClick={() => void toggleMessageReaction(msg.id, emoji)}
-                                  className={cn(
-                                    "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors",
-                                    reactedByMe
-                                      ? "border-indigo-300 bg-indigo-100 text-indigo-700"
-                                      : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                                  )}
-                                >
-                                  <span>{emoji}</span>
-                                  <span>{safeUserIds.length}</span>
-                                </button>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
                       <div
                         className={cn(
-                          "mt-1 flex max-h-0 flex-wrap gap-1 overflow-hidden opacity-0 transition-all duration-150 pointer-events-none group-hover/message:max-h-24 group-hover/message:opacity-100 group-hover/message:pointer-events-auto group-focus-within/message:max-h-24 group-focus-within/message:opacity-100 group-focus-within/message:pointer-events-auto",
-                          isMe ? "justify-end" : "justify-start"
+                          "group/bubble flex min-w-0 flex-col gap-1",
+                          isMe ? "items-end" : "items-start"
                         )}
                       >
-                        {QUICK_REACTIONS.map((emoji) => {
-                          const reactedBy = msg.reactions?.[emoji] ?? [];
-                          const reactedByMe = reactedBy.includes(currentUser.id);
-                          if (reactedByMe) return null;
-                          return (
-                            <button
-                              key={`${msg.id}-add-${emoji}`}
-                              type="button"
-                              onClick={() => void toggleMessageReaction(msg.id, emoji)}
-                              className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 transition-colors hover:bg-slate-50"
-                              aria-label={`React with ${emoji}`}
-                              title={`React with ${emoji}`}
+                        <div
+                          className={cn(
+                            "flex items-end gap-2",
+                            isMe ? "flex-row-reverse" : "flex-row"
+                          )}
+                        >
+                          <div
+                            className={cn(
+                              "max-w-full shrink-0 break-words px-5 py-3 text-sm font-medium shadow-sm sm:max-w-xl",
+                              isMe
+                                ? "rounded-[1.5rem] rounded-tr-none bg-indigo-600 text-white shadow-indigo-600/20"
+                                : "rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white text-slate-700"
+                            )}
+                          >
+                            {msg.content}
+                          </div>
+                          {reactionEntries.length > 0 && (
+                            <div
+                              className={cn(
+                                "flex shrink-0 flex-wrap items-center gap-1",
+                                isMe ? "justify-end" : "justify-start"
+                              )}
                             >
-                              {emoji}
-                            </button>
-                          );
-                        })}
+                              {reactionEntries.map(([emoji, userIds]) => {
+                                const safeUserIds = userIds.filter((id) => Boolean(id));
+                                const reactedByMe = safeUserIds.includes(currentUser.id);
+                                return (
+                                  <button
+                                    key={`${msg.id}-${emoji}`}
+                                    type="button"
+                                    onClick={() => void toggleMessageReaction(msg.id, emoji)}
+                                    className={cn(
+                                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors",
+                                      reactedByMe
+                                        ? "border-indigo-300 bg-indigo-100 text-indigo-700"
+                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                                    )}
+                                  >
+                                    <span>{emoji}</span>
+                                    <span>{safeUserIds.length}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        <div
+                          className={cn(
+                            "flex max-h-0 flex-wrap gap-1 overflow-hidden opacity-0 transition-all duration-150 pointer-events-none group-hover/bubble:max-h-24 group-hover/bubble:opacity-100 group-hover/bubble:pointer-events-auto group-focus-within/bubble:max-h-24 group-focus-within/bubble:opacity-100 group-focus-within/bubble:pointer-events-auto",
+                            isMe ? "justify-end" : "justify-start"
+                          )}
+                        >
+                          {QUICK_REACTIONS.map((emoji) => {
+                            const reactedBy = msg.reactions?.[emoji] ?? [];
+                            const reactedByMe = reactedBy.includes(currentUser.id);
+                            if (reactedByMe) return null;
+                            return (
+                              <button
+                                key={`${msg.id}-add-${emoji}`}
+                                type="button"
+                                onClick={() => void toggleMessageReaction(msg.id, emoji)}
+                                className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 transition-colors hover:bg-slate-50"
+                                aria-label={`React with ${emoji}`}
+                                title={`React with ${emoji}`}
+                              >
+                                {emoji}
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
                   </div>

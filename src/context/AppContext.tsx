@@ -732,31 +732,59 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       if (!db || !workspaceId || !user || !messageId) return;
       const reaction = emoji.trim();
       if (!reaction) return;
-      const ref = doc(db, "workspaces", workspaceId, "messages", messageId);
-      await runTransaction(db, async (txn) => {
-        const snap = await txn.get(ref);
-        if (!snap.exists()) return;
-        const data = snap.data() as Record<string, unknown>;
-        const rawReactions = data.reactions;
-        const reactions: Record<string, string[]> = {};
-        if (rawReactions && typeof rawReactions === "object") {
-          Object.entries(rawReactions as Record<string, unknown>).forEach(([key, value]) => {
-            if (!Array.isArray(value)) return;
-            reactions[key] = value.filter((entry): entry is string => typeof entry === "string");
-          });
-        }
-        const currentUsers = reactions[reaction] ?? [];
-        const hasReacted = currentUsers.includes(user.uid);
-        const nextUsers = hasReacted
-          ? currentUsers.filter((uid) => uid !== user.uid)
-          : [...currentUsers, user.uid];
-        if (nextUsers.length === 0) {
-          delete reactions[reaction];
-        } else {
-          reactions[reaction] = nextUsers;
-        }
-        txn.update(ref, { reactions });
+      const uid = user.uid;
+
+      let snapshotBeforeOptimistic: Message[] | null = null;
+      setMessages((prev) => {
+        snapshotBeforeOptimistic = prev;
+        return prev.map((msg) => {
+          if (msg.id !== messageId) return msg;
+          const reactions = { ...(msg.reactions ?? {}) };
+          const currentUsers = reactions[reaction] ?? [];
+          const hasReacted = currentUsers.includes(uid);
+          const nextUsers = hasReacted
+            ? currentUsers.filter((id) => id !== uid)
+            : [...currentUsers, uid];
+          if (nextUsers.length === 0) {
+            delete reactions[reaction];
+          } else {
+            reactions[reaction] = nextUsers;
+          }
+          const hasAny = Object.keys(reactions).length > 0;
+          return { ...msg, reactions: hasAny ? reactions : undefined };
+        });
       });
+
+      const ref = doc(db, "workspaces", workspaceId, "messages", messageId);
+      try {
+        await runTransaction(db, async (txn) => {
+          const snap = await txn.get(ref);
+          if (!snap.exists()) return;
+          const data = snap.data() as Record<string, unknown>;
+          const rawReactions = data.reactions;
+          const reactions: Record<string, string[]> = {};
+          if (rawReactions && typeof rawReactions === "object") {
+            Object.entries(rawReactions as Record<string, unknown>).forEach(([key, value]) => {
+              if (!Array.isArray(value)) return;
+              reactions[key] = value.filter((entry): entry is string => typeof entry === "string");
+            });
+          }
+          const currentUsers = reactions[reaction] ?? [];
+          const hasReacted = currentUsers.includes(uid);
+          const nextUsers = hasReacted
+            ? currentUsers.filter((id) => id !== uid)
+            : [...currentUsers, uid];
+          if (nextUsers.length === 0) {
+            delete reactions[reaction];
+          } else {
+            reactions[reaction] = nextUsers;
+          }
+          txn.update(ref, { reactions });
+        });
+      } catch (err) {
+        console.error("[AppContext] toggleMessageReaction:", err);
+        if (snapshotBeforeOptimistic) setMessages(snapshotBeforeOptimistic);
+      }
     },
     [db, workspaceId, user]
   );
