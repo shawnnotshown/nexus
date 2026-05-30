@@ -173,8 +173,8 @@ function LayoutContent() {
           <main
             className={
               currentView === "project-detail" || currentView === "chat"
-                ? "min-h-0 flex-1 overflow-auto bg-slate-100"
-                : "min-h-0 flex-1 overflow-auto bg-slate-100 p-6 md:p-8"
+                ? "min-h-0 flex-1 overflow-auto bg-slate-100 select-text"
+                : "min-h-0 flex-1 overflow-auto bg-slate-100 p-6 md:p-8 select-text"
             }
           >
             {currentView === "dashboard" && (

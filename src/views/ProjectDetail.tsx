@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   ArrowLeft,
   Calendar,
+  Check,
   Copy,
   FileText,
   Kanban,
@@ -67,6 +68,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   const [newScheduleEventDate, setNewScheduleEventDate] = useState("");
   const [newScheduleEventNotes, setNewScheduleEventNotes] = useState("");
   const [scheduleEventToDeleteId, setScheduleEventToDeleteId] = useState<string | null>(null);
+  const [boardCopyFeedback, setBoardCopyFeedback] = useState<string | null>(null);
 
   const project = projects.find(p => p.id === projectId);
   const extras = useProjectExtras(project?.id ?? null, activeBoardThreadId);
@@ -245,6 +247,45 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     void extras.deleteScheduleEvent(scheduleEventToDeleteId);
     setScheduleEventToDeleteId(null);
   };
+
+  const copyBoardText = async (text: string, feedbackKey: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setBoardCopyFeedback(feedbackKey);
+      window.setTimeout(() => {
+        setBoardCopyFeedback((prev) => (prev === feedbackKey ? null : prev));
+      }, 2000);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "");
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand("copy");
+        setBoardCopyFeedback(feedbackKey);
+        window.setTimeout(() => {
+          setBoardCopyFeedback((prev) => (prev === feedbackKey ? null : prev));
+        }, 2000);
+      } finally {
+        document.body.removeChild(textarea);
+      }
+    }
+  };
+
+  const boardCopyButtonClass = (copied: boolean) =>
+    copied
+      ? "text-emerald-600 bg-emerald-50"
+      : "text-slate-400 hover:text-indigo-600 hover:bg-indigo-50";
+
+  const renderBoardCopyIcon = (feedbackKey: string, size: number) =>
+    boardCopyFeedback === feedbackKey ? (
+      <Check size={size} className="stroke-[2.5px] text-emerald-600 transition-transform scale-110" />
+    ) : (
+      <Copy size={size} className="stroke-[2.5px] transition-transform" />
+    );
 
   const submitInvite = async (sendEmail: boolean) => {
     if (!user || !workspaceId) {
@@ -766,7 +807,18 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                   <X size={20} className="stroke-[3px]" />
                 </button>
               </div>
-              <p className="text-slate-600 text-sm font-medium mb-6 whitespace-pre-wrap">{activeThread.content}</p>
+              <div className="relative mb-6 group">
+                <p className="text-slate-600 text-sm font-medium whitespace-pre-wrap select-text pr-10">{activeThread.content}</p>
+                <button
+                  type="button"
+                  onClick={() => void copyBoardText(activeThread.content, `thread-${activeThread.id}`)}
+                  className={`absolute top-0 right-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${boardCopyButtonClass(boardCopyFeedback === `thread-${activeThread.id}`)}`}
+                  aria-label={boardCopyFeedback === `thread-${activeThread.id}` ? "Copied" : "Copy message"}
+                  title={boardCopyFeedback === `thread-${activeThread.id}` ? "Copied!" : "Copy message"}
+                >
+                  {renderBoardCopyIcon(`thread-${activeThread.id}`, 16)}
+                </button>
+              </div>
               <p className="text-xs font-bold text-slate-400 mb-4">
                 {author?.name ?? "Member"} · {format(new Date(activeThread.createdAt), "MMM d, yyyy h:mm a")}
               </p>
@@ -782,8 +834,19 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold flex items-center justify-center">{initial}</div>
                       )}
-                      <div>
-                        <div className="bg-slate-50 rounded-2xl rounded-tl-none p-3 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap">{c.content}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="relative group/reply">
+                          <div className="bg-slate-50 rounded-2xl rounded-tl-none p-3 pr-10 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap select-text">{c.content}</div>
+                          <button
+                            type="button"
+                            onClick={() => void copyBoardText(c.content, `reply-${c.id}`)}
+                            className={`absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${boardCopyFeedback === `reply-${c.id}` ? "text-emerald-600 bg-emerald-50" : "text-slate-400 hover:text-indigo-600 hover:bg-white/80"}`}
+                            aria-label={boardCopyFeedback === `reply-${c.id}` ? "Copied" : "Copy reply"}
+                            title={boardCopyFeedback === `reply-${c.id}` ? "Copied!" : "Copy reply"}
+                          >
+                            {renderBoardCopyIcon(`reply-${c.id}`, 14)}
+                          </button>
+                        </div>
                         <span className="text-[10px] font-bold text-slate-400 mt-1 ml-1 block">
                           {u?.name ?? "Member"} · {format(new Date(c.createdAt), "MMM d, h:mm a")}
                         </span>
@@ -893,14 +956,17 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               {extras.threads.map((th) => {
                 const op = users.find((u) => u.id === th.userId);
                 return (
-                  <button
-                    type="button"
+                  <div
                     key={th.id}
-                    onClick={() => setActiveBoardThreadId(th.id)}
-                    className="w-full text-left bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow"
+                    className="relative w-full text-left bg-white border border-slate-200 rounded-2xl p-6 shadow-sm hover:shadow-md transition-shadow group/thread"
                   >
-                    <h3 className="text-lg font-black text-slate-800 mb-2">{th.title}</h3>
-                    <p className="text-slate-500 text-sm font-medium mb-4 line-clamp-2">{th.content}</p>
+                    <button
+                      type="button"
+                      onClick={() => setActiveBoardThreadId(th.id)}
+                      className="w-full text-left"
+                    >
+                      <h3 className="text-lg font-black text-slate-800 mb-2 pr-10 select-text">{th.title}</h3>
+                      <p className="text-slate-500 text-sm font-medium mb-4 line-clamp-2 select-text">{th.content}</p>
                     <div className="flex items-center gap-3">
                       {op?.avatar ? (
                         <img src={op.avatar} alt="" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
@@ -913,7 +979,20 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                         {th.commentCount} {th.commentCount === 1 ? "reply" : "replies"} · {format(new Date(th.createdAt), "MMM d")}
                       </span>
                     </div>
-                  </button>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void copyBoardText(`${th.title}\n\n${th.content}`, `preview-${th.id}`);
+                      }}
+                      className={`absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${boardCopyButtonClass(boardCopyFeedback === `preview-${th.id}`)}`}
+                      aria-label={boardCopyFeedback === `preview-${th.id}` ? "Copied" : "Copy message"}
+                      title={boardCopyFeedback === `preview-${th.id}` ? "Copied!" : "Copy message"}
+                    >
+                      {renderBoardCopyIcon(`preview-${th.id}`, 16)}
+                    </button>
+                  </div>
                 );
               })}
             </div>
