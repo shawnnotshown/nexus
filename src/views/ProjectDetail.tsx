@@ -9,6 +9,7 @@ import {
   Link as LinkIcon,
   Mail,
   MoreHorizontal,
+  Download,
   Plus,
   Send,
   Upload,
@@ -35,6 +36,7 @@ import {
   filterAssigneesForNotification,
   notifyTaskAssignment,
 } from "../lib/notifyTaskAssignment";
+import { exportTodosToPdf } from "../lib/exportTodosPdf";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
   const { projects, users, deleteProject, currentUser, tasks } = useAppContext();
@@ -194,6 +196,15 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     if (!confirmed) return;
     void extras.deleteTodoList(listId);
     setActiveTodoList(null);
+  };
+
+  const handleExportTodosPdf = () => {
+    if (!project) return;
+    exportTodosToPdf({
+      projectName: project.name,
+      lists: todoLists,
+      resolveUserName: (id) => projectUsers.find((u) => u.id === id)?.name ?? "Unassigned",
+    });
   };
 
   const handleAddAssigneeToTodoTask = (
@@ -725,6 +736,16 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                   className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
                 >
                   <Plus size={16} className="stroke-[3px]" /> Add List
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportTodosPdf}
+                  disabled={todoLists.length === 0}
+                  className="h-10 w-10 rounded-full border border-slate-200 bg-white text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                  title={todoLists.length === 0 ? "Add a list to export" : "Export to PDF"}
+                  aria-label="Export to-dos to PDF"
+                >
+                  <Download size={16} className="stroke-[2.5px]" />
                 </button>
                 <button onClick={handleCloseWidget} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
                   <X size={20} className="stroke-[3px]" />
