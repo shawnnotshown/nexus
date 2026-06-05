@@ -23,6 +23,7 @@ import { getFirebaseDb, getFirebaseStorage } from "../lib/firebase";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { useAuth } from "../context/AuthContext";
 import { normalizeAssignees, projectTodoItemFromFirestore, toIso } from "../lib/firestoreMappers";
+import { notifyScheduleEventCreated } from "../lib/notifyScheduleEvent";
 import type {
   Comment,
   ProjectBoardComment,
@@ -365,18 +366,40 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
   );
 
   const createScheduleEvent = useCallback(
-    async (title: string, eventDate: string, notes: string): Promise<string | null> => {
-      if (!db || !workspaceId || !projectId || !user) return null;
+    async (
+      title: string,
+      eventDate: string,
+      notes: string,
+      options?: { projectName?: string }
+    ): Promise<string> => {
+      if (!db || !workspaceId || !projectId || !user) {
+        throw new Error("Cannot create schedule event: workspace or project is not ready.");
+      }
       const trimmedTitle = title.trim();
-      if (!trimmedTitle || !eventDate) return null;
+      if (!trimmedTitle || !eventDate) {
+        throw new Error("Cannot create schedule event: title and date are required.");
+      }
+      const eventDateIso = new Date(`${eventDate}T09:00:00`).toISOString();
+      const trimmedNotes = notes.trim();
       const ref = await addDoc(collection(db, "workspaces", workspaceId, "projects", projectId, "scheduleEvents"), {
         title: trimmedTitle,
-        notes: notes.trim(),
-        eventDate: new Date(`${eventDate}T09:00:00`).toISOString(),
+        notes: trimmedNotes,
+        eventDate: eventDateIso,
         createdBy: user.uid,
         reminderSent: false,
         createdAt: serverTimestamp(),
       });
+
+      void notifyScheduleEventCreated({
+        firebaseUser: user,
+        workspaceId,
+        projectId,
+        projectName: options?.projectName?.trim() || "Project",
+        eventTitle: trimmedTitle,
+        eventDate: eventDateIso,
+        notes: trimmedNotes,
+      });
+
       return ref.id;
     },
     [db, workspaceId, projectId, user]

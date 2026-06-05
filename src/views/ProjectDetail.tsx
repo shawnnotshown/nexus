@@ -36,7 +36,6 @@ import {
   filterAssigneesForNotification,
   notifyTaskAssignment,
 } from "../lib/notifyTaskAssignment";
-import { notifyScheduleEventCreated } from "../lib/notifyScheduleEvent";
 import { exportTodosToPdf } from "../lib/exportTodosPdf";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
@@ -242,29 +241,13 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   };
 
   const handleCreateScheduleEvent = () => {
-    if (!newScheduleEventTitle.trim() || !newScheduleEventDate || !user || !workspaceId || !project) return;
+    if (!newScheduleEventTitle.trim() || !newScheduleEventDate || !project) return;
     const title = newScheduleEventTitle.trim();
     const date = newScheduleEventDate;
     const notes = newScheduleEventNotes.trim();
-    const eventDateIso = new Date(`${date}T09:00:00`).toISOString();
 
     void extras
-      .createScheduleEvent(title, date, notes)
-      .then((eventId) => {
-        if (!eventId) {
-          console.warn("[scheduleEvent] Event was not created; skipping email notification.");
-          return;
-        }
-        void notifyScheduleEventCreated({
-          firebaseUser: user,
-          workspaceId,
-          projectId: project.id,
-          projectName: project.name,
-          eventTitle: title,
-          eventDate: eventDateIso,
-          notes,
-        });
-      })
+      .createScheduleEvent(title, date, notes, { projectName: project.name })
       .catch((error) => {
         console.error(
           "[scheduleEvent] Failed to create event:",
