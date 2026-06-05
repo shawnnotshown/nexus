@@ -124,6 +124,7 @@ export interface ProjectScheduleEvent {
   notes: string;
   eventDate: string;
   createdBy: string;
+  reminderSentAt?: string;
 }
 
 export interface ProjectFileMeta {

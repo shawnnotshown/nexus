@@ -58,12 +58,14 @@ function mapFile(id: string, data: Record<string, unknown>): ProjectFileMeta {
 }
 
 function mapScheduleEvent(id: string, data: Record<string, unknown>): ProjectScheduleEvent {
+  const reminderSentAt = data.reminderSentAt != null ? toIso(data.reminderSentAt) : undefined;
   return {
     id,
     title: String(data.title ?? ""),
     notes: String(data.notes ?? ""),
     eventDate: toIso(data.eventDate),
     createdBy: String(data.createdBy ?? ""),
+    ...(reminderSentAt ? { reminderSentAt } : {}),
   };
 }
 
@@ -363,17 +365,19 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
   );
 
   const createScheduleEvent = useCallback(
-    async (title: string, eventDate: string, notes: string) => {
-      if (!db || !workspaceId || !projectId || !user) return;
+    async (title: string, eventDate: string, notes: string): Promise<string | null> => {
+      if (!db || !workspaceId || !projectId || !user) return null;
       const trimmedTitle = title.trim();
-      if (!trimmedTitle || !eventDate) return;
-      await addDoc(collection(db, "workspaces", workspaceId, "projects", projectId, "scheduleEvents"), {
+      if (!trimmedTitle || !eventDate) return null;
+      const ref = await addDoc(collection(db, "workspaces", workspaceId, "projects", projectId, "scheduleEvents"), {
         title: trimmedTitle,
         notes: notes.trim(),
         eventDate: new Date(`${eventDate}T09:00:00`).toISOString(),
         createdBy: user.uid,
+        reminderSent: false,
         createdAt: serverTimestamp(),
       });
+      return ref.id;
     },
     [db, workspaceId, projectId, user]
   );

@@ -36,6 +36,7 @@ import {
   filterAssigneesForNotification,
   notifyTaskAssignment,
 } from "../lib/notifyTaskAssignment";
+import { notifyScheduleEventCreated } from "../lib/notifyScheduleEvent";
 import { exportTodosToPdf } from "../lib/exportTodosPdf";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
@@ -241,12 +242,25 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   };
 
   const handleCreateScheduleEvent = () => {
-    if (!newScheduleEventTitle.trim() || !newScheduleEventDate) return;
-    void extras.createScheduleEvent(
-      newScheduleEventTitle.trim(),
-      newScheduleEventDate,
-      newScheduleEventNotes.trim()
-    );
+    if (!newScheduleEventTitle.trim() || !newScheduleEventDate || !user || !workspaceId || !project) return;
+    const title = newScheduleEventTitle.trim();
+    const date = newScheduleEventDate;
+    const notes = newScheduleEventNotes.trim();
+    const eventDateIso = new Date(`${date}T09:00:00`).toISOString();
+
+    void extras.createScheduleEvent(title, date, notes).then((eventId) => {
+      if (!eventId) return;
+      void notifyScheduleEventCreated({
+        firebaseUser: user,
+        workspaceId,
+        projectId: project.id,
+        projectName: project.name,
+        eventTitle: title,
+        eventDate: eventDateIso,
+        notes,
+      });
+    });
+
     setNewScheduleEventTitle("");
     setNewScheduleEventDate("");
     setNewScheduleEventNotes("");
