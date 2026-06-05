@@ -248,18 +248,29 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     const notes = newScheduleEventNotes.trim();
     const eventDateIso = new Date(`${date}T09:00:00`).toISOString();
 
-    void extras.createScheduleEvent(title, date, notes).then((eventId) => {
-      if (!eventId) return;
-      void notifyScheduleEventCreated({
-        firebaseUser: user,
-        workspaceId,
-        projectId: project.id,
-        projectName: project.name,
-        eventTitle: title,
-        eventDate: eventDateIso,
-        notes,
+    void extras
+      .createScheduleEvent(title, date, notes)
+      .then((eventId) => {
+        if (!eventId) {
+          console.warn("[scheduleEvent] Event was not created; skipping email notification.");
+          return;
+        }
+        void notifyScheduleEventCreated({
+          firebaseUser: user,
+          workspaceId,
+          projectId: project.id,
+          projectName: project.name,
+          eventTitle: title,
+          eventDate: eventDateIso,
+          notes,
+        });
+      })
+      .catch((error) => {
+        console.error(
+          "[scheduleEvent] Failed to create event:",
+          error instanceof Error ? error.message : error
+        );
       });
-    });
 
     setNewScheduleEventTitle("");
     setNewScheduleEventDate("");

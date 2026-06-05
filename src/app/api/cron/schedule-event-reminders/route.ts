@@ -1,6 +1,6 @@
 import { FieldValue } from "firebase-admin/firestore";
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminDb } from "@/lib/firebaseAdmin";
+import { getAdminAuth, getAdminDb } from "@/lib/firebaseAdmin";
 import {
   buildScheduleEventEmail,
   configuredAppUrl,
@@ -38,6 +38,7 @@ export async function GET(req: NextRequest) {
     }
 
     const db = getAdminDb();
+    const auth = getAdminAuth();
     const { tomorrowStart, dayAfterTomorrowStart } = getTomorrowUtcRange();
 
     const eventsSnap = await db
@@ -81,7 +82,8 @@ export async function GET(req: NextRequest) {
       const { projectName, recipients } = await resolveProjectTeamEmails(
         db,
         parsed.workspaceId,
-        parsed.projectId
+        parsed.projectId,
+        auth
       );
 
       if (recipients.length === 0) {

@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import type { Auth } from "firebase-admin/auth";
 import type { Firestore } from "firebase-admin/firestore";
 import { appUrl, normalizeEmail, sendResendMessage } from "./email";
 
@@ -20,14 +21,46 @@ export function formatEventDate(eventDateIso: string): string {
   return format(date, "EEEE, MMMM d, yyyy");
 }
 
+async function resolveTeamMemberContact(
+  db: Firestore,
+  auth: Auth | undefined,
+  userId: string,
+  memberData: Record<string, unknown> | undefined
+): Promise<{ email?: string; displayName: string }> {
+  let displayName = memberDisplayName(memberData);
+  let email = normalizeEmail(
+    typeof memberData?.email === "string" ? memberData.email : undefined
+  );
+  if (email) return { email, displayName };
+
+  const userSnap = await db.doc(`users/${userId}`).get();
+  if (userSnap.exists) {
+    const userData = userSnap.data() as Record<string, unknown>;
+    email = normalizeEmail(typeof userData.email === "string" ? userData.email : undefined);
+    if (email) return { email, displayName };
+  }
+
+  if (!auth) return { displayName };
+
+  try {
+    const authUser = await auth.getUser(userId);
+    email = normalizeEmail(authUser.email);
+    if (authUser.displayName?.trim()) displayName = authUser.displayName.trim();
+    return { email, displayName };
+  } catch {
+    return { displayName };
+  }
+}
+
 export async function resolveProjectTeamEmails(
   db: Firestore,
   workspaceId: string,
-  projectId: string
-): Promise<{ projectName: string; recipients: TeamMemberRecipient[] }> {
+  projectId: string,
+  auth?: Auth
+): Promise<{ projectName: string; recipients: TeamMemberRecipient[]; teamSize: number }> {
   const projectSnap = await db.doc(`workspaces/${workspaceId}/projects/${projectId}`).get();
   if (!projectSnap.exists) {
-    return { projectName: "a project", recipients: [] };
+    return { projectName: "a project", recipients: [], teamSize: 0 };
   }
 
   const projectData = projectSnap.data() as Record<string, unknown>;
@@ -42,20 +75,20 @@ export async function resolveProjectTeamEmails(
   const recipients: TeamMemberRecipient[] = [];
   for (const userId of [...new Set(team)]) {
     const memberSnap = await db.doc(`workspaces/${workspaceId}/members/${userId}`).get();
-    if (!memberSnap.exists) continue;
-    const memberData = memberSnap.data() as Record<string, unknown>;
-    const email = normalizeEmail(
-      typeof memberData.email === "string" ? memberData.email : undefined
-    );
-    if (!email) continue;
+    const memberData = memberSnap.exists
+      ? (memberSnap.data() as Record<string, unknown>)
+      : undefined;
+    const contact = await resolveTeamMemberContact(db, auth, userId, memberData);
+    if (!contact.email) continue;
+
     recipients.push({
       userId,
-      email,
-      displayName: memberDisplayName(memberData),
+      email: contact.email,
+      displayName: contact.displayName,
     });
   }
 
-  return { projectName, recipients };
+  return { projectName, recipients, teamSize: team.length };
 }
 
 export function buildScheduleEventEmail(input: {

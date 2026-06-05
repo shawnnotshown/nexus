@@ -96,12 +96,27 @@ export async function POST(req: NextRequest) {
     }
 
     const creatorName = memberDisplayName(memberSnap.data() as Record<string, unknown>);
-    const { projectName, recipients } = await resolveProjectTeamEmails(db, workspaceId, projectId);
+    const { projectName, recipients, teamSize } = await resolveProjectTeamEmails(
+      db,
+      workspaceId,
+      projectId,
+      auth
+    );
 
     if (recipients.length === 0) {
+      console.warn("[schedule-events/notify] No team recipients with email.", {
+        workspaceId,
+        projectId,
+        teamSize,
+      });
       return NextResponse.json({
         sent: 0,
-        skipped: { noEmail: 0 },
+        skipped: { noEmail: teamSize },
+        teamSize,
+        message:
+          teamSize === 0
+            ? "Project has no team members."
+            : "No project team members have an email address on file.",
       });
     }
 
@@ -127,6 +142,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       sent: result.sent,
       skipped: { noEmail: result.noEmailSkipped },
+      teamSize,
+      recipients: recipients.length,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to send schedule event notification.";

@@ -26,13 +26,31 @@ export async function notifyScheduleEventCreated(input: {
       }),
     });
 
+    const payload = (await response.json().catch(() => ({}))) as {
+      error?: string;
+      sent?: number;
+      message?: string;
+      teamSize?: number;
+      recipients?: number;
+    };
+
     if (!response.ok) {
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
       console.warn(
         "[notifyScheduleEvent]",
         payload.error ?? `Request failed with status ${response.status}`
       );
+      return;
     }
+
+    if ((payload.sent ?? 0) === 0) {
+      console.warn(
+        "[notifyScheduleEvent] No emails sent.",
+        payload.message ?? `teamSize=${payload.teamSize ?? "?"} recipients=${payload.recipients ?? 0}`
+      );
+      return;
+    }
+
+    console.info("[notifyScheduleEvent] Sent", payload.sent, "email(s).");
   } catch (error) {
     console.warn(
       "[notifyScheduleEvent]",
