@@ -159,7 +159,13 @@ export function buildScheduleEventEmail(input: {
 export async function sendScheduleEventEmailsToTeam(input: {
   recipients: TeamMemberRecipient[];
   emailContent: { subject: string; text: string; html: string };
-}): Promise<{ sent: number; noEmailSkipped: number; failed: boolean; detail?: string }> {
+}): Promise<{
+  sent: number;
+  noEmailSkipped: number;
+  failed: boolean;
+  detail?: string;
+  partial?: boolean;
+}> {
   let sent = 0;
   let noEmailSkipped = 0;
 
@@ -177,7 +183,13 @@ export async function sendScheduleEventEmailsToTeam(input: {
     });
 
     if (!result.ok) {
-      return { sent, noEmailSkipped, failed: true, detail: result.detail };
+      return {
+        sent,
+        noEmailSkipped,
+        failed: true,
+        detail: result.detail,
+        partial: sent > 0,
+      };
     }
     sent += 1;
   }

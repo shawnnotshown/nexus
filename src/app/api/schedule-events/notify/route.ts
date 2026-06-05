@@ -133,6 +133,15 @@ export async function POST(req: NextRequest) {
     const result = await sendScheduleEventEmailsToTeam({ recipients, emailContent });
     if (result.failed) {
       console.error("[schedule-events/notify] Resend send failed:", result.detail);
+      if (result.partial && result.sent > 0) {
+        return NextResponse.json({
+          sent: result.sent,
+          skipped: { noEmail: result.noEmailSkipped },
+          teamSize,
+          recipients: recipients.length,
+          warning: resendFailureMessage(result.detail ?? "Unknown error"),
+        });
+      }
       return NextResponse.json(
         { error: resendFailureMessage(result.detail ?? "Unknown error") },
         { status: 502 }

@@ -21,6 +21,35 @@ export type SendResendResult =
   | { ok: true }
   | { ok: false; detail: string; status: 500 | 502 };
 
+const RESEND_MIN_INTERVAL_MS = 550;
+const RESEND_RATE_LIMIT_MAX_RETRIES = 4;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resendErrorDetail(resendError: unknown): string {
+  return typeof resendError === "object" &&
+    resendError !== null &&
+    "message" in resendError &&
+    typeof (resendError as { message: unknown }).message === "string"
+    ? (resendError as { message: string }).message
+    : JSON.stringify(resendError);
+}
+
+function isResendRateLimitError(detail: string): boolean {
+  return /too many requests|rate limit/i.test(detail);
+}
+
+let lastResendSendAt = 0;
+
+async function throttleResendSend(): Promise<void> {
+  const now = Date.now();
+  const waitMs = lastResendSendAt + RESEND_MIN_INTERVAL_MS - now;
+  if (waitMs > 0) await sleep(waitMs);
+  lastResendSendAt = Date.now();
+}
+
 export async function sendResendMessage(input: {
   to: string;
   subject: string;
@@ -38,26 +67,33 @@ export async function sendResendMessage(input: {
   }
 
   const resend = new Resend(resendApiKey);
-  const { error: resendError } = await resend.emails.send({
-    from: resendFrom,
-    to: input.to,
-    subject: input.subject,
-    text: input.text,
-    html: input.html,
-  });
 
-  if (resendError) {
-    const detail =
-      typeof resendError === "object" &&
-      resendError !== null &&
-      "message" in resendError &&
-      typeof (resendError as { message: unknown }).message === "string"
-        ? (resendError as { message: string }).message
-        : JSON.stringify(resendError);
+  for (let attempt = 0; attempt < RESEND_RATE_LIMIT_MAX_RETRIES; attempt += 1) {
+    await throttleResendSend();
+
+    const { error: resendError } = await resend.emails.send({
+      from: resendFrom,
+      to: input.to,
+      subject: input.subject,
+      text: input.text,
+      html: input.html,
+    });
+
+    if (!resendError) {
+      return { ok: true };
+    }
+
+    const detail = resendErrorDetail(resendError);
+    const canRetry = isResendRateLimitError(detail) && attempt < RESEND_RATE_LIMIT_MAX_RETRIES - 1;
+    if (canRetry) {
+      await sleep(1000);
+      continue;
+    }
+
     return { ok: false, status: 502, detail };
   }
 
-  return { ok: true };
+  return { ok: false, status: 502, detail: "Failed to send email after retries." };
 }
 
 export function resendFailureMessage(detail: string): string {
