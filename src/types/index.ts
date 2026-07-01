@@ -137,3 +137,12 @@ export interface ProjectFileMeta {
   uploadedAt: string;
   uploadedBy: string;
 }
+
+/** Personal note stored under users/{userId}/notes/{noteId} */
+export interface Note {
+  id: string;
+  title: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}

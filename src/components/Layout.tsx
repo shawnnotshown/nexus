@@ -13,6 +13,7 @@ import { ProjectDetail } from "../views/ProjectDetail";
 import { Chat } from "../views/Chat";
 import { MyTasks, type MyTasksRowFocus } from "../views/MyTasks";
 import { Calendar } from "../views/Calendar";
+import { Notes } from "../views/Notes";
 import { Settings } from "../views/Settings";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
@@ -149,6 +150,8 @@ function LayoutContent() {
         );
       case "calendar":
         return <Calendar />;
+      case "notes":
+        return <Notes />;
       case "settings":
         return <Settings />;
       default:

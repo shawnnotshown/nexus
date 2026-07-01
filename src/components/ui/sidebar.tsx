@@ -14,6 +14,7 @@ import {
   LogOut,
   Menu,
   MessagesSquare,
+  NotebookPen,
   Plus,
   Settings,
   UserCircle,
@@ -260,6 +261,19 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                       <Calendar className="h-4 w-4 shrink-0" />
                       <motion.span variants={labelMotion} className="min-w-0 text-left">
                         {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Calendar</p>}
+                      </motion.span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleNavigate("notes")}
+                      className={cn(
+                        "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-slate-100 hover:text-blue-600",
+                        isActive("notes") && "bg-slate-100 text-blue-600",
+                      )}
+                    >
+                      <NotebookPen className="h-4 w-4 shrink-0" />
+                      <motion.span variants={labelMotion} className="min-w-0 text-left">
+                        {!shouldShowCollapsed && <p className="ml-2 text-sm font-medium text-slate-900">Notes</p>}
                       </motion.span>
                     </button>
                     <Separator className="w-full" />
