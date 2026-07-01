@@ -1,4 +1,5 @@
 import type { ProjectTodoList, Task } from "../types";
+import { todoItemStatus } from "./firestoreMappers";
 
 export function percentDone(done: number, total: number): number {
   if (total <= 0) return 0;
@@ -18,7 +19,7 @@ export function todoListsProgressStats(lists: ProjectTodoList[]): { done: number
   for (const list of lists) {
     for (const t of list.tasks) {
       total++;
-      if (t.completed) done++;
+      if (todoItemStatus(t) === "done" || t.completed) done++;
     }
   }
   return { done, total };

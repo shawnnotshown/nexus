@@ -211,6 +211,11 @@ export function messageFromFirestore(id: string, data: Record<string, unknown>):
   };
 }
 
+export function todoItemStatus(item: Pick<ProjectTodoItem, "status" | "completed">): TaskStatus {
+  if (item.status) return item.status;
+  return item.completed ? "done" : "todo";
+}
+
 export function projectTodoItemFromFirestore(id: string, data: Record<string, unknown>): ProjectTodoItem {
   const commentsRaw = Array.isArray(data.comments) ? data.comments : [];
   const comments: Comment[] = commentsRaw.map((c: Record<string, unknown>) => ({
@@ -223,12 +228,24 @@ export function projectTodoItemFromFirestore(id: string, data: Record<string, un
   if (assignees.length === 0) {
     assignees = normalizeAssignees(data.assignee);
   }
+  const completed = Boolean(data.completed);
+  const rawStatus = data.status;
+  const status: TaskStatus =
+    rawStatus === "todo" ||
+    rawStatus === "in-progress" ||
+    rawStatus === "review" ||
+    rawStatus === "done"
+      ? rawStatus
+      : completed
+        ? "done"
+        : "todo";
   return {
     id,
     listId: String(data.listId ?? ""),
     title: String(data.title ?? ""),
     description: String(data.description ?? ""),
-    completed: Boolean(data.completed),
+    status,
+    completed: completed || status === "done",
     assignees,
     dueDate: data.dueDate != null ? toIso(data.dueDate) : undefined,
     comments,

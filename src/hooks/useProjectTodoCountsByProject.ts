@@ -42,8 +42,8 @@ export function useProjectTodoCountsByProject(workspaceId: string | null, projec
           let completed = 0;
           snap.forEach((d) => {
             total++;
-            const data = d.data() as { completed?: boolean };
-            if (data.completed) completed++;
+            const data = d.data() as { completed?: boolean; status?: string };
+            if (data.status === "done" || data.completed) completed++;
           });
           setCounts((prev) => ({ ...prev, [projectId]: { total, completed } }));
         },

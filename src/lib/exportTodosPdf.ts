@@ -66,14 +66,23 @@ export function exportTodosToPdf({ projectName, lists, resolveUserName }: Export
     }
 
     for (const task of list.tasks) {
-      const status = task.completed ? "Done" : "Open";
+      const statusLabel =
+        task.status === "done"
+          ? "Completed"
+          : task.status === "in-progress"
+            ? "In Progress"
+            : task.status === "review"
+              ? "Review"
+              : task.completed
+                ? "Completed"
+                : "To Do";
       const due = task.dueDate ? format(new Date(task.dueDate), "MMM d, yyyy") : null;
       const assignees =
         task.assignees.length > 0
           ? task.assignees.map((id) => resolveUserName(id)).join(", ")
           : null;
 
-      const metaParts = [`Status: ${status}`];
+      const metaParts = [`Status: ${statusLabel}`];
       if (due) metaParts.push(`Due: ${due}`);
       if (assignees) metaParts.push(`Assigned: ${assignees}`);
 

@@ -31,6 +31,7 @@ import type {
   ProjectFileMeta,
   ProjectScheduleEvent,
   ProjectTodoItem,
+  TaskStatus,
   ProjectTodoList,
 } from "../types";
 
@@ -212,13 +213,20 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
   );
 
   const createTodoItem = useCallback(
-    async (listId: string, title: string, assignees: string[] = [], dueDate?: string) => {
+    async (
+      listId: string,
+      title: string,
+      assignees: string[] = [],
+      dueDate?: string,
+      status: TaskStatus = "todo"
+    ) => {
       if (!db || !workspaceId || !projectId || !user) return;
       await addDoc(collection(db, "workspaces", workspaceId, "projects", projectId, "todoItems"), {
         listId,
         title: title.trim(),
         description: "",
-        completed: false,
+        status,
+        completed: status === "done",
         assignees: normalizeAssignees(assignees),
         dueDate: dueDate ? new Date(dueDate).toISOString() : null,
         comments: [],
@@ -233,7 +241,18 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
       if (!db || !workspaceId || !projectId) return;
       await updateDoc(
         doc(db, "workspaces", workspaceId, "projects", projectId, "todoItems", itemId),
-        { completed }
+        { completed, status: completed ? "done" : "todo" }
+      );
+    },
+    [db, workspaceId, projectId]
+  );
+
+  const updateTodoItemStatus = useCallback(
+    async (itemId: string, status: TaskStatus) => {
+      if (!db || !workspaceId || !projectId) return;
+      await updateDoc(
+        doc(db, "workspaces", workspaceId, "projects", projectId, "todoItems", itemId),
+        { status, completed: status === "done" }
       );
     },
     [db, workspaceId, projectId]
@@ -266,11 +285,18 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
   );
 
   const updateTodoItem = useCallback(
-    async (itemId: string, updates: { assignees?: string[]; dueDate?: string | null }) => {
+    async (
+      itemId: string,
+      updates: { assignees?: string[]; dueDate?: string | null; status?: TaskStatus }
+    ) => {
       if (!db || !workspaceId || !projectId) return;
       const payload: Record<string, unknown> = {};
       if ("assignees" in updates) payload.assignees = normalizeAssignees(updates.assignees ?? []);
       if ("dueDate" in updates) payload.dueDate = updates.dueDate ?? null;
+      if ("status" in updates && updates.status) {
+        payload.status = updates.status;
+        payload.completed = updates.status === "done";
+      }
       if (Object.keys(payload).length === 0) return;
       await updateDoc(
         doc(db, "workspaces", workspaceId, "projects", projectId, "todoItems", itemId),
@@ -459,6 +485,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
     toggleTodoItem,
     deleteTodoItem,
     updateTodoItem,
+    updateTodoItemStatus,
     deleteTodoList,
     addTodoItemComment,
     createBoardThread,

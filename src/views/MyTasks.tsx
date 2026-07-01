@@ -12,9 +12,7 @@ type KanbanRow = { kind: "kanban"; task: Task };
 type TodoRow = { kind: "todo"; projectId: string; item: ProjectTodoItem };
 type MyTaskRow = KanbanRow | TodoRow;
 
-function todoItemAsStatus(item: ProjectTodoItem): TaskStatus {
-  return item.completed ? "done" : "todo";
-}
+import { todoItemStatus } from "../lib/firestoreMappers";
 
 function statusBadgeClass(status: TaskStatus): string {
   switch (status) {
@@ -81,7 +79,7 @@ export const MyTasks: React.FC<{
     if (filter === "all") return myTaskRows;
     return myTaskRows.filter((row) => {
       if (row.kind === "kanban") return row.task.status === filter;
-      const st = todoItemAsStatus(row.item);
+      const st = todoItemStatus(row.item);
       if (filter === "done") return st === "done";
       if (filter === "todo" || filter === "in-progress" || filter === "review") {
         return st === "todo";
@@ -209,7 +207,7 @@ export const MyTasks: React.FC<{
 
             const { projectId, item } = row;
             const project = projects.find((p) => p.id === projectId);
-            const status = todoItemAsStatus(item);
+            const status = todoItemStatus(item);
             return (
               <div
                 key={`t-${projectId}-${item.id}-${index}`}

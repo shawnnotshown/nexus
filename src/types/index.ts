@@ -105,6 +105,7 @@ export interface ProjectTodoItem {
   listId: string;
   title: string;
   description: string;
+  status: TaskStatus;
   completed: boolean;
   assignees: string[];
   dueDate?: string;

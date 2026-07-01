@@ -6,12 +6,15 @@ import {
   Copy,
   FileText,
   Kanban,
+  LayoutList,
   Link as LinkIcon,
   Mail,
   MoreHorizontal,
   Download,
+  GripVertical,
   Plus,
   Send,
+  Table,
   Upload,
   MessageSquare,
   CheckSquare,
@@ -22,14 +25,11 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useAppContext } from "../context/AppContext";
-import { KanbanBoard } from "../components/KanbanBoard";
 import { useProjectExtras } from "../hooks/useProjectExtras";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { WorkProgressBar } from "../components/WorkProgressBar";
 import {
-  combinedWorkProgressPercent,
-  kanbanProgressStats,
   percentDone,
   todoListsProgressStats,
 } from "../lib/projectProgress";
@@ -38,10 +38,51 @@ import {
   notifyTaskAssignment,
 } from "../lib/notifyTaskAssignment";
 import { exportTodosToPdf } from "../lib/exportTodosPdf";
-import type { ProjectScheduleEvent } from "../types";
+import { todoItemStatus } from "../lib/firestoreMappers";
+import { cn } from "../lib/utils";
+import type { ProjectScheduleEvent, TaskStatus } from "../types";
+
+const TODO_BOARD_COLUMNS: {
+  id: TaskStatus;
+  label: string;
+  color: string;
+  bg: string;
+  outlineClass: string;
+}[] = [
+  {
+    id: "todo",
+    label: "To Do",
+    color: "text-indigo-600",
+    bg: "bg-indigo-50",
+    outlineClass: "outline-indigo-200",
+  },
+  {
+    id: "in-progress",
+    label: "In Progress",
+    color: "text-rose-600",
+    bg: "bg-rose-50",
+    outlineClass: "outline-rose-200",
+  },
+  {
+    id: "review",
+    label: "Review",
+    color: "text-amber-600",
+    bg: "bg-amber-50",
+    outlineClass: "outline-amber-200",
+  },
+  {
+    id: "done",
+    label: "Completed",
+    color: "text-emerald-600",
+    bg: "bg-emerald-50",
+    outlineClass: "outline-emerald-200",
+  },
+];
+
+const DND_TODO_MIME = "application/x-nexus-todo-id";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
-  const { projects, users, deleteProject, currentUser, tasks } = useAppContext();
+  const { projects, users, deleteProject, currentUser } = useAppContext();
   const { user } = useAuth();
   const { workspaceId } = useWorkspace();
   const [activeWidget, setActiveWidget] = useState<string | null>(null);
@@ -75,6 +116,13 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   const [editingScheduleEventId, setEditingScheduleEventId] = useState<string | null>(null);
   const [scheduleEventToDeleteId, setScheduleEventToDeleteId] = useState<string | null>(null);
   const [boardCopyFeedback, setBoardCopyFeedback] = useState<string | null>(null);
+  const [todosView, setTodosView] = useState<"list" | "table" | "board">("list");
+  const [tableAddTaskOpen, setTableAddTaskOpen] = useState(false);
+  const [tableAddTaskListId, setTableAddTaskListId] = useState("");
+  const [boardAddingTaskStatus, setBoardAddingTaskStatus] = useState<TaskStatus | null>(null);
+  const [boardAddTaskListId, setBoardAddTaskListId] = useState("");
+  const [boardDraggingTaskId, setBoardDraggingTaskId] = useState<string | null>(null);
+  const [boardDragOverColumn, setBoardDragOverColumn] = useState<TaskStatus | null>(null);
 
   const project = projects.find(p => p.id === projectId);
   const extras = useProjectExtras(project?.id ?? null, activeBoardThreadId);
@@ -106,37 +154,39 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   }, [activeTodoTask]);
 
   const todoLists = extras.todoLists;
-  const boardTasks = project ? tasks.filter((t) => t.projectId === project.id) : [];
   const scheduleEventToDelete = extras.scheduleEvents.find((event) => event.id === scheduleEventToDeleteId);
-  const boardSummary = useMemo(
-    () => [
-      { id: "todo" as const, label: "To do", n: boardTasks.filter((t) => t.status === "todo").length },
-      {
-        id: "in-progress" as const,
-        label: "In progress",
-        n: boardTasks.filter((t) => t.status === "in-progress").length,
-      },
-      { id: "review" as const, label: "Review", n: boardTasks.filter((t) => t.status === "review").length },
-      { id: "done" as const, label: "Done", n: boardTasks.filter((t) => t.status === "done").length },
-    ],
-    [boardTasks]
-  );
 
   const todoProgressStats = useMemo(() => todoListsProgressStats(todoLists), [todoLists]);
-  const kanbanProgress = useMemo(() => kanbanProgressStats(boardTasks), [boardTasks]);
-  const hubCombinedProgress = useMemo(
-    () =>
-      combinedWorkProgressPercent(
-        kanbanProgress,
-        todoProgressStats,
-        project?.progress ?? 0
-      ),
-    [kanbanProgress, todoProgressStats, project?.progress]
-  );
   const todoOnlyPercent = useMemo(
     () => percentDone(todoProgressStats.done, todoProgressStats.total),
     [todoProgressStats]
   );
+
+  const allBoardTasks = useMemo(
+    () =>
+      todoLists.flatMap((list) =>
+        list.tasks.map((task) => ({ ...task, listName: list.name }))
+      ),
+    [todoLists]
+  );
+
+  const boardTasksByColumn = useMemo(() => {
+    const grouped: Record<TaskStatus, (typeof allBoardTasks)[number][]> = {
+      todo: [],
+      "in-progress": [],
+      review: [],
+      done: [],
+    };
+    for (const task of allBoardTasks) {
+      grouped[todoItemStatus(task)].push(task);
+    }
+    grouped.todo.sort((a, b) => {
+      const aDue = a.dueDate ? new Date(a.dueDate).getTime() : Number.POSITIVE_INFINITY;
+      const bDue = b.dueDate ? new Date(b.dueDate).getTime() : Number.POSITIVE_INFINITY;
+      return aDue - bDue;
+    });
+    return grouped;
+  }, [allBoardTasks]);
 
   if (!project) return <div>Project not found</div>;
 
@@ -174,7 +224,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     });
   };
 
-  const handleAddTask = (listId: string) => {
+  const handleAddTask = (listId: string, status: TaskStatus = "todo") => {
     if (!newTaskTitle.trim()) {
       setIsAddingTask(false);
       return;
@@ -182,13 +232,16 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     const title = newTaskTitle.trim();
     const assignees = newTaskAssigneeId ? [newTaskAssigneeId] : [];
     const dueDateIso = newTaskDeadline ? new Date(`${newTaskDeadline}T23:59:59`).toISOString() : undefined;
-    void extras.createTodoItem(listId, title, assignees, dueDateIso);
+    void extras.createTodoItem(listId, title, assignees, dueDateIso, status);
     if (newTaskAssigneeId) {
       sendTodoAssignmentEmails(title, [newTaskAssigneeId]);
     }
     setNewTaskTitle("");
     setNewTaskDeadline("");
     setIsAddingTask(true);
+    setBoardAddingTaskStatus(null);
+    setBoardAddTaskListId("");
+    setTableAddTaskOpen(false);
   };
 
   const handleDeleteTodoTask = (taskId: string) => {
@@ -245,6 +298,52 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setScheduleEventToDeleteId(null);
     setNewBoardComment("");
     setNewTodoComment("");
+    setTodosView("list");
+    setTableAddTaskOpen(false);
+    setTableAddTaskListId("");
+    setBoardAddingTaskStatus(null);
+    setBoardAddTaskListId("");
+    setBoardDraggingTaskId(null);
+    setBoardDragOverColumn(null);
+  };
+
+  const moveBoardTodo = (taskId: string, newStatus: TaskStatus) => {
+    const task = allBoardTasks.find((t) => t.id === taskId);
+    if (!task || todoItemStatus(task) === newStatus) return;
+    void extras.updateTodoItemStatus(taskId, newStatus);
+  };
+
+  const handleBoardTodoDragStart = (e: React.DragEvent, taskId: string) => {
+    e.dataTransfer.setData(DND_TODO_MIME, taskId);
+    e.dataTransfer.setData("text/plain", taskId);
+    e.dataTransfer.effectAllowed = "move";
+    setBoardDraggingTaskId(taskId);
+  };
+
+  const handleBoardTodoDragEnd = () => {
+    setBoardDraggingTaskId(null);
+    setBoardDragOverColumn(null);
+  };
+
+  const markBoardColumnHover = (e: React.DragEvent, columnId: TaskStatus) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setBoardDragOverColumn(columnId);
+  };
+
+  const dropOnBoardColumn = (e: React.DragEvent, columnId: TaskStatus) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setBoardDragOverColumn(null);
+    const taskId = e.dataTransfer.getData(DND_TODO_MIME) || e.dataTransfer.getData("text/plain");
+    if (!taskId) return;
+    moveBoardTodo(taskId, columnId);
+  };
+
+  const handleBoardColumnDragLeave = (e: React.DragEvent, columnId: TaskStatus) => {
+    const next = e.relatedTarget as Node | null;
+    if (next && (e.currentTarget as HTMLElement).contains(next)) return;
+    setBoardDragOverColumn((prev) => (prev === columnId ? null : prev));
   };
 
   const resetScheduleEventForm = () => {
@@ -396,27 +495,105 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     }
   };
 
+  const renderTodosViewToggle = () => (
+    <div className="flex items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 p-1">
+      {(
+        [
+          { id: "list" as const, label: "List", icon: LayoutList },
+          { id: "table" as const, label: "Table", icon: Table },
+          { id: "board" as const, label: "Board", icon: Kanban },
+        ] as const
+      ).map(({ id, label, icon: Icon }) => (
+        <button
+          key={id}
+          type="button"
+          onClick={() => {
+            setTodosView(id);
+            setActiveTodoList(null);
+            setTableAddTaskOpen(false);
+            setBoardAddingTaskStatus(null);
+            setBoardAddTaskListId("");
+          }}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+            todosView === id
+              ? "bg-white text-indigo-700 shadow-sm border border-slate-200"
+              : "text-slate-500 hover:text-slate-700"
+          }`}
+        >
+          <Icon size={14} className="stroke-[2.5px]" />
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  const renderInlineAddTaskForm = (listId: string, onCancel: () => void, status: TaskStatus = "todo") => (
+    <div className="bg-white p-4 rounded-xl border border-indigo-200 shadow-sm space-y-3">
+      <div className="flex items-center gap-4">
+        <CheckSquare size={20} className="stroke-[2px] text-slate-200" />
+        <input
+          type="text"
+          autoFocus
+          value={newTaskTitle}
+          onChange={(e) => setNewTaskTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleAddTask(listId, status);
+            if (e.key === "Escape") onCancel();
+          }}
+          placeholder="What needs to be done?"
+          className="flex-1 bg-transparent border-none focus:outline-none text-sm font-bold text-slate-800 placeholder-slate-400"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <select
+          value={newTaskAssigneeId}
+          onChange={(e) => setNewTaskAssigneeId(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+        >
+          <option value="">Unassigned</option>
+          {projectUsers.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.name}
+            </option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={newTaskDeadline}
+          onChange={(e) => setNewTaskDeadline(e.target.value)}
+          className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+        />
+      </div>
+      {currentUser.id && !newTaskAssigneeId ? (
+        <button
+          type="button"
+          onClick={() => setNewTaskAssigneeId(currentUser.id)}
+          className="text-left text-xs font-bold text-indigo-600 hover:text-indigo-800"
+        >
+          Assign to me
+        </button>
+      ) : null}
+      <div className="flex justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => handleAddTask(listId, status)}
+          className="px-3 py-1.5 rounded-lg text-xs font-bold bg-indigo-600 text-white hover:bg-indigo-700"
+        >
+          Save Task
+        </button>
+      </div>
+    </div>
+  );
+
   const renderExpandedWidget = () => {
     switch (activeWidget) {
-      case "kanban":
-        return (
-          <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
-                  <Kanban size={20} className="stroke-[3px]" />
-                </div>
-                Features and Updates
-              </h2>
-              <button onClick={handleCloseWidget} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors">
-                <X size={20} className="stroke-[3px]" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <KanbanBoard projectId={project.id} teamMemberIds={project.team} />
-            </div>
-          </div>
-        );
       case "todos":
         if (activeTodoTask) {
            const list = todoLists.find(l => l.tasks.some(t => t.id === activeTodoTask));
@@ -597,7 +774,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
            }
         }
         
-        if (activeTodoList) {
+        if (todosView === "list" && activeTodoList) {
            const list = todoLists.find(l => l.id === activeTodoList);
            const listTodoPct = list
              ? percentDone(
@@ -775,20 +952,49 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
 
         return (
           <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-            <div className="flex items-center justify-between mb-8">
-              <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
-                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
-                  <CheckSquare size={20} className="stroke-[3px]" />
-                </div>
-                To-Dos
-              </h2>
-              <div className="flex items-center gap-3">
-                <button 
-                  onClick={() => setIsAddingList(true)}
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
-                >
-                  <Plus size={16} className="stroke-[3px]" /> Add List
-                </button>
+            <div className="flex flex-col gap-4 mb-8 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center">
+                    <CheckSquare size={20} className="stroke-[3px]" />
+                  </div>
+                  To-Dos
+                </h2>
+                {renderTodosViewToggle()}
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                {todosView === "table" && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTableAddTaskListId(todoLists[0]?.id ?? "");
+                      setNewTaskTitle("");
+                      setNewTaskAssigneeId("");
+                      setNewTaskDeadline("");
+                      setTableAddTaskOpen(true);
+                    }}
+                    disabled={todoLists.length === 0}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Plus size={16} className="stroke-[3px]" /> Add Task
+                  </button>
+                )}
+                {todosView === "list" && (
+                  <button
+                    onClick={() => setIsAddingList(true)}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus size={16} className="stroke-[3px]" /> Add List
+                  </button>
+                )}
+                {todosView === "board" && (
+                  <button
+                    onClick={() => setIsAddingList(true)}
+                    className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                  >
+                    <Plus size={16} className="stroke-[3px]" /> Add List
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={handleExportTodosPdf}
@@ -810,48 +1016,446 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 percent={todoOnlyPercent}
               />
             </div>
-            <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-               {todoLists.map(list => (
-                 <div 
-                   key={list.id} 
-                   onClick={() => setActiveTodoList(list.id)}
-                   className="bg-slate-50 p-6 rounded-2xl border border-slate-100 hover:bg-indigo-50/50 hover:border-indigo-100 transition-all cursor-pointer group flex flex-col h-full shadow-sm"
-                 >
-                   <div className="flex items-center justify-between mb-4">
-                     <h3 className="text-lg font-black text-slate-800 group-hover:text-indigo-900 transition-colors tracking-tight">{list.name}</h3>
-                     <span className="text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-100">{list.tasks.length} tasks</span>
-                   </div>
-                   <div className="space-y-3 flex-1">
-                      {list.tasks.slice(0, 3).map(task => (
+
+            {todosView === "list" && (
+              <div className="flex-1 overflow-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {todoLists.map((list) => (
+                  <div
+                    key={list.id}
+                    onClick={() => setActiveTodoList(list.id)}
+                    className="bg-slate-50 p-6 rounded-2xl border border-slate-100 hover:bg-indigo-50/50 hover:border-indigo-100 transition-all cursor-pointer group flex flex-col h-full shadow-sm"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-black text-slate-800 group-hover:text-indigo-900 transition-colors tracking-tight">
+                        {list.name}
+                      </h3>
+                      <span className="text-xs font-bold text-slate-400 bg-white px-2 py-1 rounded-lg shadow-sm border border-slate-100">
+                        {list.tasks.length} tasks
+                      </span>
+                    </div>
+                    <div className="space-y-3 flex-1">
+                      {list.tasks.slice(0, 3).map((task) => (
                         <div key={task.id} className="flex items-start gap-3">
-                           <CheckSquare size={16} className={`mt-0.5 flex-shrink-0 ${task.completed ? 'text-emerald-500' : 'text-slate-300'}`} />
-                           <span className={`text-sm font-medium line-clamp-1 ${task.completed ? 'text-slate-400 line-through' : 'text-slate-600'}`}>{task.title}</span>
+                          <CheckSquare
+                            size={16}
+                            className={`mt-0.5 flex-shrink-0 ${task.completed ? "text-emerald-500" : "text-slate-300"}`}
+                          />
+                          <span
+                            className={`text-sm font-medium line-clamp-1 ${task.completed ? "text-slate-400 line-through" : "text-slate-600"}`}
+                          >
+                            {task.title}
+                          </span>
                         </div>
                       ))}
                       {list.tasks.length > 3 && (
-                        <div className="text-xs font-bold text-indigo-500 pt-2">+ {list.tasks.length - 3} more</div>
+                        <div className="text-xs font-bold text-indigo-500 pt-2">
+                          + {list.tasks.length - 3} more
+                        </div>
                       )}
-                   </div>
-                 </div>
-               ))}
-               {isAddingList && (
-                 <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-200 shadow-sm flex flex-col h-full h-min-[150px]">
-                   <input 
-                     type="text" 
-                     autoFocus
-                     value={newListTitle}
-                     onChange={(e) => setNewListTitle(e.target.value)}
-                     onKeyDown={(e) => {
-                       if (e.key === 'Enter') handleAddList();
-                       if (e.key === 'Escape') setIsAddingList(false);
-                     }}
-                     onBlur={handleAddList}
-                     placeholder="New List Name..."
-                     className="bg-white border border-indigo-100 rounded-xl px-4 py-2 text-sm font-bold text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full mb-4 md:mb-auto shadow-sm"
-                   />
-                 </div>
-               )}
-            </div>
+                    </div>
+                  </div>
+                ))}
+                {isAddingList && (
+                  <div className="bg-indigo-50/50 p-6 rounded-2xl border border-indigo-200 shadow-sm flex flex-col h-full h-min-[150px]">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newListTitle}
+                      onChange={(e) => setNewListTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddList();
+                        if (e.key === "Escape") setIsAddingList(false);
+                      }}
+                      onBlur={handleAddList}
+                      placeholder="New List Name..."
+                      className="bg-white border border-indigo-100 rounded-xl px-4 py-2 text-sm font-bold text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full mb-4 md:mb-auto shadow-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {todosView === "table" && (
+              <div className="flex-1 overflow-auto flex flex-col gap-4">
+                {todoLists.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <p className="text-sm font-medium text-slate-500 mb-4">No lists yet. Create a list to get started.</p>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingList(true)}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={16} className="stroke-[3px]" /> Add List
+                    </button>
+                  </div>
+                ) : (
+                  <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+                    <table className="w-full text-left">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50">
+                          <th className="w-10 px-4 py-3" />
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500">Title</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500">List</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500">Assignees</th>
+                          <th className="px-4 py-3 text-xs font-black uppercase tracking-widest text-slate-500">Due Date</th>
+                          <th className="w-12 px-4 py-3" />
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {todoLists.flatMap((list) =>
+                          list.tasks.map((task) => (
+                            <tr
+                              key={task.id}
+                              onClick={() => setActiveTodoTask(task.id)}
+                              className="border-b border-slate-50 hover:bg-indigo-50/40 cursor-pointer transition-colors group"
+                            >
+                              <td className="px-4 py-3">
+                                <button
+                                  type="button"
+                                  className="text-slate-300 hover:text-emerald-500 transition-colors"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleTaskCompletion(list.id, task.id);
+                                  }}
+                                >
+                                  <CheckSquare
+                                    size={18}
+                                    className={`stroke-[2px] ${task.completed ? "text-emerald-500" : ""}`}
+                                  />
+                                </button>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span
+                                  className={`text-sm font-bold ${task.completed ? "text-slate-400 line-through" : "text-slate-700 group-hover:text-indigo-700"}`}
+                                >
+                                  {task.title}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className="text-xs font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-2.5 py-1">
+                                  {list.name}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex -space-x-2">
+                                  {task.assignees.length === 0 ? (
+                                    <span className="text-xs font-medium text-slate-400 italic">Unassigned</span>
+                                  ) : (
+                                    task.assignees.map((id) => {
+                                      const u = projectUsers.find((pu) => pu.id === id);
+                                      return u ? (
+                                        <img
+                                          key={id}
+                                          src={u.avatar}
+                                          className="w-7 h-7 rounded-full border-2 border-white object-cover bg-slate-100 shadow-sm"
+                                          alt={u.name}
+                                          title={u.name}
+                                        />
+                                      ) : null;
+                                    })
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                {task.dueDate ? (
+                                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                                    <Calendar size={14} className="stroke-[3px]" />
+                                    {format(new Date(task.dueDate), "MMM d, yyyy")}
+                                  </span>
+                                ) : (
+                                  <span className="text-xs font-medium text-slate-300">—</span>
+                                )}
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTodoTask(task.id);
+                                  }}
+                                  className="h-8 w-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors bg-white opacity-0 group-hover:opacity-100"
+                                  aria-label={`Delete task ${task.title}`}
+                                  title="Delete task"
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                        {todoLists.every((l) => l.tasks.length === 0) && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-12 text-center text-sm font-medium text-slate-400">
+                              No tasks yet. Click &quot;Add Task&quot; to create one.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                {tableAddTaskOpen && todoLists.length > 0 && (
+                  <div className="space-y-3">
+                    <select
+                      value={tableAddTaskListId}
+                      onChange={(e) => setTableAddTaskListId(e.target.value)}
+                      className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200 max-w-xs"
+                    >
+                      {todoLists.map((list) => (
+                        <option key={list.id} value={list.id}>
+                          {list.name}
+                        </option>
+                      ))}
+                    </select>
+                    {tableAddTaskListId &&
+                      renderInlineAddTaskForm(tableAddTaskListId, () => {
+                        setTableAddTaskOpen(false);
+                        setNewTaskTitle("");
+                        setNewTaskAssigneeId("");
+                        setNewTaskDeadline("");
+                      })}
+                  </div>
+                )}
+                {isAddingList && (
+                  <div className="bg-indigo-50/50 p-4 rounded-2xl border border-indigo-200 shadow-sm max-w-md">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newListTitle}
+                      onChange={(e) => setNewListTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddList();
+                        if (e.key === "Escape") setIsAddingList(false);
+                      }}
+                      onBlur={handleAddList}
+                      placeholder="New List Name..."
+                      className="bg-white border border-indigo-100 rounded-xl px-4 py-2 text-sm font-bold text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full shadow-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {todosView === "board" && (
+              <div className="flex-1 overflow-x-auto overflow-y-hidden min-h-0">
+                {todoLists.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <p className="text-sm font-medium text-slate-500 mb-4">
+                      Create a list first, then add tasks to the board.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddingList(true)}
+                      className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
+                    >
+                      <Plus size={16} className="stroke-[3px]" /> Add List
+                    </button>
+                    {isAddingList && (
+                      <div className="mt-4 w-full max-w-sm bg-indigo-50/50 p-4 rounded-2xl border border-indigo-200 shadow-sm">
+                        <input
+                          type="text"
+                          autoFocus
+                          value={newListTitle}
+                          onChange={(e) => setNewListTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") handleAddList();
+                            if (e.key === "Escape") setIsAddingList(false);
+                          }}
+                          onBlur={handleAddList}
+                          placeholder="New List Name..."
+                          className="bg-white border border-indigo-100 rounded-xl px-4 py-2 text-sm font-bold text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full shadow-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex gap-4 h-full min-w-max pb-4">
+                    {TODO_BOARD_COLUMNS.map((column) => {
+                      const columnTasks = boardTasksByColumn[column.id];
+                      const isDropTarget =
+                        boardDragOverColumn === column.id && boardDraggingTaskId !== null;
+
+                      return (
+                        <div
+                          key={column.id}
+                          className={cn(
+                            "w-80 flex-shrink-0 flex flex-col rounded-[2rem] border shadow-sm transition-[box-shadow,border-color,background-color] duration-150 max-h-full",
+                            isDropTarget
+                              ? "bg-indigo-50/90 border-indigo-300 ring-2 ring-indigo-400/60 ring-offset-2 ring-offset-slate-50"
+                              : "bg-slate-50/50 border-slate-200"
+                          )}
+                          onDragOver={(e) => markBoardColumnHover(e, column.id)}
+                          onDrop={(e) => dropOnBoardColumn(e, column.id)}
+                          onDragLeave={(e) => handleBoardColumnDragLeave(e, column.id)}
+                        >
+                          <div className="p-4 flex items-center justify-between gap-2 border-b border-slate-200/80">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={cn(
+                                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest outline outline-1 outline-offset-2 shrink-0",
+                                  column.bg,
+                                  column.color,
+                                  column.outlineClass
+                                )}
+                              >
+                                {column.label}
+                              </span>
+                              <span className="text-sm font-bold text-slate-400">{columnTasks.length}</span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBoardAddingTaskStatus(column.id);
+                                setBoardAddTaskListId(todoLists[0]?.id ?? "");
+                                setNewTaskTitle("");
+                                setNewTaskAssigneeId("");
+                                setNewTaskDeadline("");
+                              }}
+                              className="w-8 h-8 flex items-center justify-center bg-white rounded-full text-slate-400 hover:text-indigo-600 shadow-sm hover:shadow-md transition-all shrink-0"
+                              title={`Add task to ${column.label}`}
+                              aria-label={`Add task to ${column.label}`}
+                            >
+                              <Plus size={16} className="stroke-[3px]" />
+                            </button>
+                          </div>
+
+                          <div
+                            className="flex-1 overflow-y-auto p-3 space-y-2 min-h-[200px]"
+                            onDragOver={(e) => markBoardColumnHover(e, column.id)}
+                            onDrop={(e) => dropOnBoardColumn(e, column.id)}
+                          >
+                            {columnTasks.length === 0 && boardDraggingTaskId && (
+                              <p className="text-center text-xs font-semibold text-indigo-400/90 pt-6 px-2">
+                                Drop here to move to {column.label}.
+                              </p>
+                            )}
+                            {columnTasks.map((task) => {
+                              const isDragging = boardDraggingTaskId === task.id;
+                              const isDone = todoItemStatus(task) === "done";
+
+                              return (
+                                <div
+                                  key={task.id}
+                                  draggable
+                                  onDragStart={(e) => handleBoardTodoDragStart(e, task.id)}
+                                  onDragEnd={handleBoardTodoDragEnd}
+                                  onClick={() => setActiveTodoTask(task.id)}
+                                  className={cn(
+                                    "bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group",
+                                    isDragging && "opacity-40 scale-[0.98]"
+                                  )}
+                                >
+                                  <div className="flex items-start gap-2 mb-2">
+                                    <GripVertical
+                                      size={14}
+                                      className="text-slate-300 mt-0.5 shrink-0 cursor-grab active:cursor-grabbing"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="text-slate-300 hover:text-emerald-500 transition-colors mt-0.5 shrink-0"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleTaskCompletion(task.listId, task.id);
+                                      }}
+                                    >
+                                      <CheckSquare
+                                        size={16}
+                                        className={`stroke-[2px] ${isDone ? "text-emerald-500" : ""}`}
+                                      />
+                                    </button>
+                                    <span
+                                      className={`text-sm font-bold flex-1 ${isDone ? "text-slate-400 line-through" : "text-slate-700 group-hover:text-indigo-700"}`}
+                                    >
+                                      {task.title}
+                                    </span>
+                                  </div>
+                                  <div className="flex flex-wrap items-center gap-2 pl-6 mb-2">
+                                    <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
+                                      {task.listName}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 pl-6">
+                                    {task.dueDate ? (
+                                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                                        <Calendar size={12} className="stroke-[3px]" />
+                                        {format(new Date(task.dueDate), "MMM d")}
+                                      </span>
+                                    ) : (
+                                      <span />
+                                    )}
+                                    <div className="flex -space-x-1.5">
+                                      {task.assignees.map((id) => {
+                                        const u = projectUsers.find((pu) => pu.id === id);
+                                        return u ? (
+                                          <img
+                                            key={id}
+                                            src={u.avatar}
+                                            className="w-6 h-6 rounded-full border-2 border-white object-cover bg-slate-100"
+                                            alt={u.name}
+                                            title={u.name}
+                                          />
+                                        ) : null;
+                                      })}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {boardAddingTaskStatus === column.id && (
+                              <div className="space-y-2">
+                                {todoLists.length > 1 && (
+                                  <select
+                                    value={boardAddTaskListId}
+                                    onChange={(e) => setBoardAddTaskListId(e.target.value)}
+                                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                                  >
+                                    {todoLists.map((list) => (
+                                      <option key={list.id} value={list.id}>
+                                        {list.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                )}
+                                {boardAddTaskListId &&
+                                  renderInlineAddTaskForm(
+                                    boardAddTaskListId,
+                                    () => {
+                                      setBoardAddingTaskStatus(null);
+                                      setBoardAddTaskListId("");
+                                      setNewTaskTitle("");
+                                      setNewTaskAssigneeId("");
+                                      setNewTaskDeadline("");
+                                    },
+                                    column.id
+                                  )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                {isAddingList && todoLists.length > 0 && (
+                  <div className="mt-4 max-w-sm bg-indigo-50/50 p-4 rounded-2xl border border-indigo-200 shadow-sm">
+                    <input
+                      type="text"
+                      autoFocus
+                      value={newListTitle}
+                      onChange={(e) => setNewListTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleAddList();
+                        if (e.key === "Escape") setIsAddingList(false);
+                      }}
+                      onBlur={handleAddList}
+                      placeholder="New List Name..."
+                      className="bg-white border border-indigo-100 rounded-xl px-4 py-2 text-sm font-bold text-indigo-900 placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full shadow-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         );
       case "messages": {
@@ -1265,8 +1869,6 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
               : activeWidget === "schedule"
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
-              : activeWidget === "kanban"
-                ? "flex min-h-0 flex-1 flex-col overflow-hidden px-2 pb-3 md:px-4 md:pb-4"
               : "flex min-h-0 flex-1 flex-col overflow-hidden px-6 pb-6 md:px-8"
           }
         >
@@ -1281,12 +1883,12 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
             <div className="w-full max-w-xs mx-auto mb-6 space-y-2">
               <WorkProgressBar
                 label=""
-                percent={hubCombinedProgress}
+                percent={todoOnlyPercent}
                 trackClassName="bg-slate-200"
               />
-              {kanbanProgress.total + todoProgressStats.total === 0 ? (
+              {todoProgressStats.total === 0 ? (
                 <p className="text-center text-[11px] font-medium text-slate-400">
-                  Add Kanban cards or checklist tasks to fill this bar.
+                  Add checklist tasks to fill this bar.
                 </p>
               ) : null}
             </div>
@@ -1427,31 +2029,6 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                    <p className="text-[10px] font-bold text-slate-400 mt-3">{extras.files.length} file{extras.files.length === 1 ? "" : "s"} in Storage</p>
                  )}
               </div>
-            </div>
-
-            {/* Features and Updates (Kanban) */}
-            <div 
-              onClick={() => setActiveWidget("kanban")}
-              className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 hover:shadow-md hover:border-indigo-100 hover:-translate-y-1 transition-all group cursor-pointer flex flex-col items-center justify-center text-center h-72"
-            >
-              <h2 className="font-black text-indigo-900 mb-3 group-hover:text-emerald-500 transition-colors text-lg tracking-tight">Features and Updates</h2>
-              <div className="w-16 h-16 bg-amber-100 text-amber-500 rounded-full flex items-center justify-center mb-3">
-                  <Kanban size={28} className="stroke-[2.5px]" />
-              </div>
-              <div className="flex flex-wrap justify-center gap-1.5 mb-4 px-2 max-w-[17rem]">
-                {boardSummary.map((s) => (
-                  <span
-                    key={s.id}
-                    className="text-[9px] font-black uppercase tracking-wide text-slate-600 bg-slate-50 border border-slate-200/80 rounded-full px-2 py-1"
-                  >
-                    {s.label} · {s.n}
-                  </span>
-                ))}
-              </div>
-             
-              <span className="px-5 py-2 rounded-full border border-slate-200 text-xs font-bold text-slate-600 group-hover:bg-slate-50 group-hover:border-slate-300 transition-colors shadow-sm pointer-events-none">
-                {boardTasks.length === 0 ? "Open board — add a card" : `Open board (${boardTasks.length} card${boardTasks.length === 1 ? "" : "s"})`}
-              </span>
             </div>
 
             {/* MVP Checklist */}
