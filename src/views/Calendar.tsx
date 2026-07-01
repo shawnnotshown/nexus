@@ -81,8 +81,9 @@ export const Calendar: React.FC = () => {
                   {dayScheduleEvents.map(({ projectId, event }) => {
                     const project = projects.find(p => p.id === projectId);
                     return (
-                      <div key={`event-${projectId}-${event.id}`} className="text-[10px] sm:text-xs leading-tight font-semibold bg-rose-50 text-rose-700 px-2 py-1.5 rounded-lg truncate shadow-sm cursor-pointer hover:bg-rose-100 transition-colors" title={`${event.title} - ${project?.name}`}>
+                      <div key={`event-${projectId}-${event.id}`} className="text-[10px] sm:text-xs leading-tight font-semibold bg-rose-50 text-rose-700 px-2 py-1.5 rounded-lg truncate shadow-sm cursor-pointer hover:bg-rose-100 transition-colors" title={`${event.title} at ${format(new Date(event.eventDate), "h:mm a")} - ${project?.name}`}>
                         <span className="hidden sm:inline opacity-75 mr-1 font-bold">{project?.name.substring(0, 3)}:</span>
+                        <span className="opacity-75 mr-1">{format(new Date(event.eventDate), "h:mm a")}</span>
                         {event.title}
                       </div>
                     )

@@ -370,6 +370,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
       title: string,
       eventDate: string,
       notes: string,
+      eventTime: string = "09:00",
       options?: { projectName?: string }
     ): Promise<string> => {
       if (!db || !workspaceId || !projectId || !user) {
@@ -379,7 +380,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
       if (!trimmedTitle || !eventDate) {
         throw new Error("Cannot create schedule event: title and date are required.");
       }
-      const eventDateIso = new Date(`${eventDate}T09:00:00`).toISOString();
+      const eventDateIso = new Date(`${eventDate}T${eventTime || "09:00"}:00`).toISOString();
       const trimmedNotes = notes.trim();
       const ref = await addDoc(collection(db, "workspaces", workspaceId, "projects", projectId, "scheduleEvents"), {
         title: trimmedTitle,
@@ -413,6 +414,39 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
     [db, workspaceId, projectId]
   );
 
+  const updateScheduleEvent = useCallback(
+    async (
+      eventId: string,
+      title: string,
+      eventDate: string,
+      notes: string,
+      eventTime: string = "09:00"
+    ): Promise<void> => {
+      if (!db || !workspaceId || !projectId) {
+        throw new Error("Cannot update schedule event: workspace or project is not ready.");
+      }
+      const trimmedTitle = title.trim();
+      if (!trimmedTitle || !eventDate) {
+        throw new Error("Cannot update schedule event: title and date are required.");
+      }
+      const eventDateIso = new Date(`${eventDate}T${eventTime || "09:00"}:00`).toISOString();
+      const trimmedNotes = notes.trim();
+      const eventRef = doc(db, "workspaces", workspaceId, "projects", projectId, "scheduleEvents", eventId);
+      const existing = await getDoc(eventRef);
+      const prevDate = existing.exists() ? toIso(existing.data()?.eventDate) : null;
+      const payload: Record<string, unknown> = {
+        title: trimmedTitle,
+        notes: trimmedNotes,
+        eventDate: eventDateIso,
+      };
+      if (prevDate !== eventDateIso) {
+        payload.reminderSent = false;
+      }
+      await updateDoc(eventRef, payload as DocumentData);
+    },
+    [db, workspaceId, projectId]
+  );
+
   return {
     ready: ready && basePathOk,
     todoLists,
@@ -432,6 +466,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
     uploadFiles,
     deleteProjectFile,
     createScheduleEvent,
+    updateScheduleEvent,
     deleteScheduleEvent,
   };
 }

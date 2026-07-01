@@ -59,6 +59,73 @@ function extractTextPreview(content: string, maxLength = 80): string {
   }
 }
 
+function DeleteNoteConfirmModal({
+  note,
+  deleting,
+  onCancel,
+  onConfirm,
+}: {
+  note: Note;
+  deleting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleting) onCancel();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deleting, onCancel]);
+
+  const title = note.title.trim() || "Untitled";
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 bg-slate-900/40"
+        aria-label="Close delete confirmation"
+        onClick={() => {
+          if (!deleting) onCancel();
+        }}
+      />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-note-title"
+        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+      >
+        <h2 id="delete-note-title" className="text-lg font-bold text-slate-900">
+          Delete note?
+        </h2>
+        <p className="mt-2 text-sm text-slate-600">
+          <span className="font-semibold text-slate-800">&ldquo;{title}&rdquo;</span> will be
+          permanently deleted. This cannot be undone.
+        </p>
+        <div className="mt-6 flex justify-end gap-2">
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={onCancel}
+            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={deleting}
+            onClick={onConfirm}
+            className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700 disabled:opacity-60"
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ToolbarButton({
   onClick,
   active,
@@ -342,6 +409,8 @@ export const Notes: React.FC = () => {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [creating, setCreating] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const filteredNotes = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -375,12 +444,21 @@ export const Notes: React.FC = () => {
     }
   };
 
-  const handleDeleteNote = async (noteId: string) => {
-    const remaining = notes.filter((note) => note.id !== noteId);
-    if (selectedNoteId === noteId) {
-      setSelectedNoteId(remaining[0]?.id ?? null);
+  const handleConfirmDeleteNote = async () => {
+    if (!noteToDelete || deleting) return;
+
+    const noteId = noteToDelete.id;
+    setDeleting(true);
+    try {
+      const remaining = notes.filter((note) => note.id !== noteId);
+      if (selectedNoteId === noteId) {
+        setSelectedNoteId(remaining[0]?.id ?? null);
+      }
+      await deleteNote(noteId);
+      setNoteToDelete(null);
+    } finally {
+      setDeleting(false);
     }
-    await deleteNote(noteId);
   };
 
   const handleSave = useCallback(
@@ -475,7 +553,7 @@ export const Notes: React.FC = () => {
                         <button
                           type="button"
                           title="Delete note"
-                          onClick={() => void handleDeleteNote(note.id)}
+                          onClick={() => setNoteToDelete(note)}
                           className="mr-1 mt-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -515,6 +593,17 @@ export const Notes: React.FC = () => {
         <div className="flex min-h-[50vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm md:hidden">
           <NoteEditor key={selectedNote.id} note={selectedNote} onSave={handleSave} />
         </div>
+      )}
+
+      {noteToDelete && (
+        <DeleteNoteConfirmModal
+          note={noteToDelete}
+          deleting={deleting}
+          onCancel={() => {
+            if (!deleting) setNoteToDelete(null);
+          }}
+          onConfirm={() => void handleConfirmDeleteNote()}
+        />
       )}
     </div>
   );

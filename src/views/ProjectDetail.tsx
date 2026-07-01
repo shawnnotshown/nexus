@@ -16,6 +16,7 @@ import {
   MessageSquare,
   CheckSquare,
   Trash2,
+  Pencil,
   UserPlus,
   X,
 } from "lucide-react";
@@ -37,6 +38,7 @@ import {
   notifyTaskAssignment,
 } from "../lib/notifyTaskAssignment";
 import { exportTodosToPdf } from "../lib/exportTodosPdf";
+import type { ProjectScheduleEvent } from "../types";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
   const { projects, users, deleteProject, currentUser, tasks } = useAppContext();
@@ -68,7 +70,9 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   const [showNewScheduleEventForm, setShowNewScheduleEventForm] = useState(false);
   const [newScheduleEventTitle, setNewScheduleEventTitle] = useState("");
   const [newScheduleEventDate, setNewScheduleEventDate] = useState("");
+  const [newScheduleEventTime, setNewScheduleEventTime] = useState("09:00");
   const [newScheduleEventNotes, setNewScheduleEventNotes] = useState("");
+  const [editingScheduleEventId, setEditingScheduleEventId] = useState<string | null>(null);
   const [scheduleEventToDeleteId, setScheduleEventToDeleteId] = useState<string | null>(null);
   const [boardCopyFeedback, setBoardCopyFeedback] = useState<string | null>(null);
 
@@ -90,7 +94,9 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setShowNewScheduleEventForm(false);
     setNewScheduleEventTitle("");
     setNewScheduleEventDate("");
+    setNewScheduleEventTime("09:00");
     setNewScheduleEventNotes("");
+    setEditingScheduleEventId(null);
     setScheduleEventToDeleteId(null);
   }, [projectId]);
 
@@ -235,30 +241,68 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setActiveBoardThreadId(null);
     setShowNewThreadForm(false);
     setShowNewScheduleEventForm(false);
+    setEditingScheduleEventId(null);
     setScheduleEventToDeleteId(null);
     setNewBoardComment("");
     setNewTodoComment("");
   };
 
-  const handleCreateScheduleEvent = () => {
+  const resetScheduleEventForm = () => {
+    setNewScheduleEventTitle("");
+    setNewScheduleEventDate("");
+    setNewScheduleEventTime("09:00");
+    setNewScheduleEventNotes("");
+    setShowNewScheduleEventForm(false);
+    setEditingScheduleEventId(null);
+  };
+
+  const openNewScheduleEventForm = () => {
+    setEditingScheduleEventId(null);
+    setNewScheduleEventTitle("");
+    setNewScheduleEventDate("");
+    setNewScheduleEventTime("09:00");
+    setNewScheduleEventNotes("");
+    setShowNewScheduleEventForm(true);
+  };
+
+  const startEditingScheduleEvent = (event: ProjectScheduleEvent) => {
+    const date = new Date(event.eventDate);
+    setEditingScheduleEventId(event.id);
+    setNewScheduleEventTitle(event.title);
+    setNewScheduleEventDate(format(date, "yyyy-MM-dd"));
+    setNewScheduleEventTime(format(date, "HH:mm"));
+    setNewScheduleEventNotes(event.notes);
+    setShowNewScheduleEventForm(true);
+  };
+
+  const handleSaveScheduleEvent = () => {
     if (!newScheduleEventTitle.trim() || !newScheduleEventDate || !project) return;
     const title = newScheduleEventTitle.trim();
     const date = newScheduleEventDate;
+    const time = newScheduleEventTime;
     const notes = newScheduleEventNotes.trim();
 
-    void extras
-      .createScheduleEvent(title, date, notes, { projectName: project.name })
-      .catch((error) => {
-        console.error(
-          "[scheduleEvent] Failed to create event:",
-          error instanceof Error ? error.message : error
-        );
-      });
+    if (editingScheduleEventId) {
+      void extras
+        .updateScheduleEvent(editingScheduleEventId, title, date, notes, time)
+        .catch((error) => {
+          console.error(
+            "[scheduleEvent] Failed to update event:",
+            error instanceof Error ? error.message : error
+          );
+        });
+    } else {
+      void extras
+        .createScheduleEvent(title, date, notes, time, { projectName: project.name })
+        .catch((error) => {
+          console.error(
+            "[scheduleEvent] Failed to create event:",
+            error instanceof Error ? error.message : error
+          );
+        });
+    }
 
-    setNewScheduleEventTitle("");
-    setNewScheduleEventDate("");
-    setNewScheduleEventNotes("");
-    setShowNewScheduleEventForm(false);
+    resetScheduleEventForm();
   };
 
   const handleConfirmDeleteScheduleEvent = () => {
@@ -1041,7 +1085,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowNewScheduleEventForm(true)}
+                  onClick={openNewScheduleEventForm}
                   className="bg-rose-500 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-rose-200 hover:bg-rose-600 transition-colors flex items-center gap-2"
                 >
                   <Plus size={16} className="stroke-[3px]" /> Add Event
@@ -1054,15 +1098,18 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
             <div className="flex-1 overflow-auto bg-slate-50 rounded-2xl border border-slate-100 p-4 sm:p-6">
               {showNewScheduleEventForm && (
                 <div className="mb-6 bg-white rounded-2xl border border-rose-100 shadow-sm p-5 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-[1fr_180px] gap-3">
+                  <h3 className="text-sm font-black text-rose-600 uppercase tracking-wide">
+                    {editingScheduleEventId ? "Edit Event" : "New Event"}
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-[1fr_180px_130px] gap-3">
                     <input
                       type="text"
                       autoFocus
                       value={newScheduleEventTitle}
                       onChange={(e) => setNewScheduleEventTitle(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleCreateScheduleEvent();
-                        if (e.key === "Escape") setShowNewScheduleEventForm(false);
+                        if (e.key === "Enter") handleSaveScheduleEvent();
+                        if (e.key === "Escape") resetScheduleEventForm();
                       }}
                       placeholder="Event title"
                       className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-100"
@@ -1071,6 +1118,12 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                       type="date"
                       value={newScheduleEventDate}
                       onChange={(e) => setNewScheduleEventDate(e.target.value)}
+                      className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-100"
+                    />
+                    <input
+                      type="time"
+                      value={newScheduleEventTime}
+                      onChange={(e) => setNewScheduleEventTime(e.target.value)}
                       className="rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-100"
                     />
                   </div>
@@ -1084,18 +1137,18 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
-                      onClick={() => setShowNewScheduleEventForm(false)}
+                      onClick={resetScheduleEventForm}
                       className="px-4 py-2 rounded-xl text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
                     >
                       Cancel
                     </button>
                     <button
                       type="button"
-                      onClick={handleCreateScheduleEvent}
+                      onClick={handleSaveScheduleEvent}
                       disabled={!newScheduleEventTitle.trim() || !newScheduleEventDate}
                       className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50"
                     >
-                      Save Event
+                      {editingScheduleEventId ? "Save Changes" : "Save Event"}
                     </button>
                   </div>
                 </div>
@@ -1105,29 +1158,41 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                   const author = users.find((u) => u.id === event.createdBy);
                   return (
                     <div key={event.id} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start gap-4 group">
-                      <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-500 flex flex-col items-center justify-center shrink-0">
+                      <div className="w-12 h-14 rounded-2xl bg-rose-50 text-rose-500 flex flex-col items-center justify-center shrink-0">
                         <span className="text-[10px] font-black uppercase">{format(new Date(event.eventDate), "MMM")}</span>
                         <span className="text-lg font-black leading-none">{format(new Date(event.eventDate), "d")}</span>
+                        <span className="text-[8px] font-bold leading-none mt-0.5">{format(new Date(event.eventDate), "h:mm a")}</span>
                       </div>
                       <div className="flex-1 min-w-0">
                         <h3 className="font-black text-slate-800 text-sm line-clamp-1">{event.title}</h3>
                         <p className="text-xs font-medium text-slate-500 mt-1">
-                          {format(new Date(event.eventDate), "EEEE, MMMM d, yyyy")}
+                          {format(new Date(event.eventDate), "EEEE, MMMM d, yyyy 'at' h:mm a")}
                           {author ? ` · Added by ${author.name}` : ""}
                         </p>
                         {event.notes && (
                           <p className="text-sm font-medium text-slate-600 mt-3 whitespace-pre-wrap">{event.notes}</p>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setScheduleEventToDeleteId(event.id)}
-                        className="h-9 w-9 rounded-full border border-rose-100 bg-rose-50 flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-700 hover:border-rose-200 transition-colors shrink-0"
-                        aria-label={`Delete event ${event.title}`}
-                        title="Delete event"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => startEditingScheduleEvent(event)}
+                          className="h-9 w-9 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-indigo-600 hover:border-slate-300 transition-colors"
+                          aria-label={`Edit event ${event.title}`}
+                          title="Edit event"
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setScheduleEventToDeleteId(event.id)}
+                          className="h-9 w-9 rounded-full border border-rose-100 bg-rose-50 flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-700 hover:border-rose-200 transition-colors"
+                          aria-label={`Delete event ${event.title}`}
+                          title="Delete event"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1319,7 +1384,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               </div>
               <p className="text-xs text-slate-500 mb-6 px-4 font-medium leading-relaxed">
                 {extras.scheduleEvents[0]
-                  ? `Next: ${extras.scheduleEvents[0].title} on ${format(new Date(extras.scheduleEvents[0].eventDate), "MMM d")}`
+                  ? `Next: ${extras.scheduleEvents[0].title} on ${format(new Date(extras.scheduleEvents[0].eventDate), "MMM d 'at' h:mm a")}`
                   : "Set important dates on a shared schedule."}
               </p>
               <button className="px-5 py-2 rounded-full border border-slate-200 text-xs font-bold text-slate-600 group-hover:bg-slate-50 group-hover:border-slate-300 transition-colors shadow-sm pointer-events-none">

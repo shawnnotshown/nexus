@@ -18,7 +18,7 @@ function memberDisplayName(data: Record<string, unknown> | undefined): string {
 export function formatEventDate(eventDateIso: string): string {
   const date = new Date(eventDateIso);
   if (Number.isNaN(date.getTime())) return eventDateIso;
-  return format(date, "EEEE, MMMM d, yyyy");
+  return format(date, "EEEE, MMMM d, yyyy 'at' h:mm a");
 }
 
 async function resolveTeamMemberContact(
