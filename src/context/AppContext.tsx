@@ -72,6 +72,10 @@ interface AppContextType {
   typingUsersByChannel: Record<string, string[]>;
   addXP: (amount: number) => Promise<void>;
   addProject: (project: Omit<Project, "id">) => Promise<void>;
+  updateProject: (
+    id: string,
+    updates: Pick<Project, "name" | "description" | "dueDate">
+  ) => Promise<void>;
   deleteProject?: (id: string) => Promise<void>;
   deleteTask: (id: string) => Promise<void>;
   addTask: (input: {
@@ -544,6 +548,24 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     [db, workspaceId, user]
   );
 
+  const updateProject = useCallback(
+    async (
+      id: string,
+      updates: Pick<Project, "name" | "description" | "dueDate">
+    ) => {
+      if (!db || !workspaceId) return;
+      const name = updates.name.trim();
+      if (!name) throw new Error("Project name is required.");
+
+      await updateDoc(doc(db, "workspaces", workspaceId, "projects", id), {
+        name,
+        description: updates.description.trim(),
+        dueDate: updates.dueDate ?? null,
+      });
+    },
+    [db, workspaceId]
+  );
+
   const createSubChannel = useCallback(
     async (projectId: string, name: string) => {
       if (!db || !workspaceId || !user) return;
@@ -828,6 +850,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         typingUsersByChannel,
         addXP,
         addProject,
+        updateProject,
         deleteProject,
         deleteTask,
         addTask,

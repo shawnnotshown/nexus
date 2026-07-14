@@ -7,6 +7,7 @@ import { AuthGate } from "./AuthGate";
 import { AppProvider, useAppContext } from "../context/AppContext";
 import { AuthProvider } from "../context/AuthContext";
 import { WorkspaceProvider } from "../context/WorkspaceContext";
+import { UserProfileProvider } from "../context/UserProfileContext";
 import { Dashboard } from "../views/Dashboard";
 import { Projects } from "../views/Projects";
 import { ProjectDetail } from "../views/ProjectDetail";
@@ -213,7 +214,9 @@ function LayoutContent() {
 function LayoutShell() {
   return (
     <AppProvider>
-      <LayoutContent />
+      <UserProfileProvider>
+        <LayoutContent />
+      </UserProfileProvider>
     </AppProvider>
   );
 }

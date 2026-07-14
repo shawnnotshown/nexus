@@ -28,24 +28,6 @@ function dueSortKey(iso: string | undefined): number {
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
 }
 
-const PROJECT_COLORS = [
-  "bg-pink-100 text-pink-600",
-  "bg-teal-100 text-teal-600",
-  "bg-amber-100 text-amber-600",
-  "bg-blue-100 text-blue-600",
-  "bg-violet-100 text-violet-600",
-  "bg-emerald-100 text-emerald-600",
-];
-
-function projectInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("") || "?";
-}
-
 const ACTIVE_PROJECTS_LIMIT = 4;
 const UPCOMING_TASKS_LIMIT = 5;
 
@@ -208,7 +190,7 @@ export const Dashboard: React.FC<{
               {visibleProjects.length === 0 ? (
                 <p className="text-sm text-gray-500 py-4 text-center">No projects yet.</p>
               ) : (
-                visibleProjects.map((project, idx) => {
+                visibleProjects.map((project) => {
                 const kanban = kanbanProgressStats(tasks.filter((t) => t.projectId === project.id));
                 const todoAgg = todoCountsByProject[project.id] ?? { total: 0, completed: 0 };
                 const progressPct = combinedWorkProgressPercent(
@@ -216,16 +198,12 @@ export const Dashboard: React.FC<{
                   { done: todoAgg.completed, total: todoAgg.total },
                   project.progress
                 );
-                const colorClass = PROJECT_COLORS[idx % PROJECT_COLORS.length];
                 return (
                 <div 
                   key={project.id} 
                   onClick={() => onProjectClick(project.id)}
                   className="p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer bg-white group flex items-center gap-4"
                 >
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${colorClass}`}>
-                    {projectInitials(project.name)}
-                  </div>
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-gray-800 mb-0.5 group-hover:text-blue-600 truncate">{project.name}</h3>
                     <p className="text-sm text-gray-500 mb-2 line-clamp-1">{project.description}</p>
@@ -265,17 +243,10 @@ export const Dashboard: React.FC<{
                       }}
                       className="flex items-center justify-between p-4 rounded-xl transition-colors cursor-pointer bg-white border border-gray-100 shadow-sm hover:border-blue-200"
                     >
-                      <div className="flex items-center gap-3 min-w-0">
-                        <input
-                          type="checkbox"
-                          readOnly
-                          className="w-5 h-5 rounded border-gray-300 text-blue-600 shrink-0"
-                        />
-                        <div className="min-w-0">
-                          <div className="font-semibold text-gray-800 truncate">{task.title}</div>
-                          <div className="text-xs text-gray-400 font-medium mt-1">
-                            Due: {formatDueLabel(task.dueDate)}
-                          </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-800 truncate">{task.title}</div>
+                        <div className="text-xs text-gray-400 font-medium mt-1">
+                          Due: {formatDueLabel(task.dueDate)}
                         </div>
                       </div>
                     </div>
@@ -298,13 +269,10 @@ export const Dashboard: React.FC<{
                     }}
                     className="flex items-center justify-between p-4 rounded-xl transition-colors bg-white border border-gray-100 shadow-sm hover:border-blue-200 cursor-pointer"
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <input type="checkbox" readOnly className="w-5 h-5 rounded border-gray-300 text-blue-600 shrink-0" />
-                      <div className="min-w-0">
-                        <div className="font-semibold text-gray-800 truncate">{item.title}</div>
-                        <div className="text-xs text-gray-400 font-medium mt-1">
-                          Due: {formatDueLabel(item.dueDate)}
-                        </div>
+                    <div className="min-w-0">
+                      <div className="font-semibold text-gray-800 truncate">{item.title}</div>
+                      <div className="text-xs text-gray-400 font-medium mt-1">
+                        Due: {formatDueLabel(item.dueDate)}
                       </div>
                     </div>
                   </div>

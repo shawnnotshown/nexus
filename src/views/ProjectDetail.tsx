@@ -20,7 +20,6 @@ import {
   CheckSquare,
   Trash2,
   Pencil,
-  UserPlus,
   X,
 } from "lucide-react";
 import { format } from "date-fns";
@@ -29,6 +28,7 @@ import { useProjectExtras } from "../hooks/useProjectExtras";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
 import { WorkProgressBar } from "../components/WorkProgressBar";
+import { UserAvatarButton } from "../components/UserAvatarButton";
 import {
   percentDone,
   todoListsProgressStats,
@@ -89,7 +89,7 @@ const TODO_BOARD_COLUMNS: {
 const DND_TODO_MIME = "application/x-nexus-todo-id";
 
 export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => void }> = ({ projectId, onBack }) => {
-  const { projects, users, deleteProject, currentUser } = useAppContext();
+  const { projects, users, deleteProject, updateProject, currentUser } = useAppContext();
   const { user } = useAuth();
   const { workspaceId } = useWorkspace();
   const [activeWidget, setActiveWidget] = useState<string | null>(null);
@@ -103,6 +103,12 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   const [newTaskAssigneeId, setNewTaskAssigneeId] = useState<string>("");
   const [newTaskDeadline, setNewTaskDeadline] = useState<string>("");
   const [showProjectMenu, setShowProjectMenu] = useState<boolean>(false);
+  const [showEditProject, setShowEditProject] = useState(false);
+  const [editProjectName, setEditProjectName] = useState("");
+  const [editProjectDesc, setEditProjectDesc] = useState("");
+  const [editProjectDueDate, setEditProjectDueDate] = useState("");
+  const [editProjectError, setEditProjectError] = useState("");
+  const [isSavingProject, setIsSavingProject] = useState(false);
   const [newThreadTitle, setNewThreadTitle] = useState("");
   const [newThreadBody, setNewThreadBody] = useState(EMPTY_RICH_TEXT_DOC);
   const [boardThreadForm, setBoardThreadForm] = useState<null | { mode: "create" } | { mode: "edit"; id: string }>(null);
@@ -328,6 +334,44 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setBoardAddTaskListId("");
     setBoardDraggingTaskId(null);
     setBoardDragOverColumn(null);
+  };
+
+  const openEditProject = () => {
+    if (!project) return;
+    setEditProjectName(project.name);
+    setEditProjectDesc(project.description);
+    setEditProjectDueDate(project.dueDate ? format(new Date(project.dueDate), "yyyy-MM-dd") : "");
+    setEditProjectError("");
+    setShowProjectMenu(false);
+    setShowEditProject(true);
+  };
+
+  const closeEditProject = () => {
+    if (isSavingProject) return;
+    setShowEditProject(false);
+    setEditProjectError("");
+  };
+
+  const handleUpdateProject = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!project || !editProjectName.trim()) return;
+
+    setIsSavingProject(true);
+    setEditProjectError("");
+    try {
+      await updateProject(project.id, {
+        name: editProjectName,
+        description: editProjectDesc,
+        dueDate: editProjectDueDate
+          ? new Date(`${editProjectDueDate}T23:59:59`).toISOString()
+          : undefined,
+      });
+      setShowEditProject(false);
+    } catch (error) {
+      setEditProjectError(error instanceof Error ? error.message : "Unable to update the project.");
+    } finally {
+      setIsSavingProject(false);
+    }
   };
 
   const moveBoardTodo = (taskId: string, newStatus: TaskStatus) => {
@@ -2091,9 +2135,18 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
             </button>
             {showProjectMenu && (
               <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-100 rounded-2xl shadow-xl shadow-indigo-100/50 p-2 z-50">
-                <button className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors mb-1">Edit Project</button>
-                <button className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors mb-1">Archive Project</button>
+                <button
+                  type="button"
+                  className="w-full text-left px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-indigo-600 rounded-xl transition-colors mb-1"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEditProject();
+                  }}
+                >
+                  Edit Project
+                </button>
                 <button 
+                  type="button"
                   className="w-full text-left px-4 py-2 text-sm font-bold text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
                   onClick={() => {
                      if (deleteProject && project) {
@@ -2156,7 +2209,13 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               </button>
               <div className="flex -space-x-2">
                 {projectUsers.map((u, i) => (
-                  <img key={u.id} src={u.avatar} alt={u.name} className="w-8 h-8 rounded-full border-2 border-white relative object-cover shadow-sm" style={{ zIndex: projectUsers.length - i }} />
+                  <UserAvatarButton
+                    key={u.id}
+                    user={u}
+                    imgClassName="w-8 h-8 border-2 border-white shadow-sm"
+                    className="relative"
+                    style={{ zIndex: projectUsers.length - i }}
+                  />
                 ))}
               </div>
             </div>
@@ -2172,21 +2231,28 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               <h2 className="text-center font-black text-indigo-900 mb-6 group-hover:text-indigo-600 transition-colors text-lg tracking-tight">Message Board</h2>
               <div className="flex-1 space-y-4">
                 {extras.threads[0] ? (
-                  <div className="flex gap-4">
-                    {(() => {
-                      const u = users.find((x) => x.id === extras.threads[0]!.userId);
-                      const initial = (u?.name ?? "?").charAt(0).toUpperCase();
-                      return u?.avatar ? (
-                        <img src={u.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0" />
-                      ) : (
-                        <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">{initial}</div>
-                      );
-                    })()}
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-slate-800 line-clamp-1 mb-0.5">{extras.threads[0].title}</div>
-                      <div className="text-xs font-medium text-slate-500 line-clamp-2">{extractTextPreview(extras.threads[0].content) || "No content"}</div>
+                  <>
+                    <div className="flex gap-4">
+                      {(() => {
+                        const u = users.find((x) => x.id === extras.threads[0]!.userId);
+                        const initial = (u?.name ?? "?").charAt(0).toUpperCase();
+                        return u?.avatar ? (
+                          <img src={u.avatar} alt="" className="w-10 h-10 rounded-full object-cover border border-slate-200 flex-shrink-0" />
+                        ) : (
+                          <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0">{initial}</div>
+                        );
+                      })()}
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold text-slate-800 line-clamp-1 mb-0.5">{extras.threads[0].title}</div>
+                        <div className="text-xs font-medium text-slate-500 line-clamp-2">{extractTextPreview(extras.threads[0].content) || "No content"}</div>
+                      </div>
                     </div>
-                  </div>
+                    {extras.threads.length > 1 && (
+                      <div className="text-center text-[11px] font-semibold text-indigo-400">
+                        +{extras.threads.length - 1} more
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <p className="text-xs text-slate-400 font-medium text-center">No threads yet — open to add one.</p>
                 )}
@@ -2484,9 +2550,6 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
             </button>
 
             <div className="flex gap-4 pr-10 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                <UserPlus size={24} className="stroke-[2px]" />
-              </div>
               <div className="min-w-0">
                 <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">
                   Invite people
@@ -2591,6 +2654,80 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               Invite links expire after 14 days.
             </p>
           </div>
+        </div>
+      )}
+
+      {showEditProject && project && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4"
+          onClick={closeEditProject}
+        >
+          <form
+            onSubmit={handleUpdateProject}
+            onClick={(event) => event.stopPropagation()}
+            className="relative w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl sm:p-8"
+          >
+            <button
+              type="button"
+              onClick={closeEditProject}
+              disabled={isSavingProject}
+              className="absolute right-5 top-5 rounded-full p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50"
+              aria-label="Close edit project"
+            >
+              <X size={20} />
+            </button>
+            <h2 className="mb-6 text-xl font-bold text-gray-900">Edit Project</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Project Name</label>
+                <input
+                  autoFocus
+                  type="text"
+                  value={editProjectName}
+                  onChange={(event) => setEditProjectName(event.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 font-semibold text-gray-800 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">Description</label>
+                <textarea
+                  value={editProjectDesc}
+                  onChange={(event) => setEditProjectDesc(event.target.value)}
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 font-medium text-gray-800 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-gray-500">
+                  Deadline <span className="normal-case tracking-normal text-gray-400">(optional)</span>
+                </label>
+                <input
+                  type="date"
+                  value={editProjectDueDate}
+                  onChange={(event) => setEditProjectDueDate(event.target.value)}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 font-semibold text-gray-800 transition-all focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              {editProjectError && <p className="text-sm font-medium text-rose-600">{editProjectError}</p>}
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={closeEditProject}
+                  disabled={isSavingProject}
+                  className="rounded-xl px-5 py-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-100 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!editProjectName.trim() || isSavingProject}
+                  className="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isSavingProject ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </div>
+          </form>
         </div>
       )}
     </div>

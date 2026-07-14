@@ -6,6 +6,7 @@ import {
   filterAssigneesForNotification,
   notifyTaskAssignment,
 } from "../lib/notifyTaskAssignment";
+import { UserAvatarButton } from "./UserAvatarButton";
 import { format } from "date-fns";
 import {
   Clock,
@@ -606,17 +607,10 @@ export const KanbanBoard: React.FC<{ projectId: string; teamMemberIds: string[] 
                                     key={id}
                                     className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-100 group/row"
                                   >
-                                    {u.avatar ? (
-                                      <img
-                                        src={u.avatar}
-                                        alt=""
-                                        className="w-7 h-7 rounded-full border border-slate-200 object-cover shrink-0"
-                                      />
-                                    ) : (
-                                      <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold flex items-center justify-center shrink-0">
-                                        {(u.name ?? "?").charAt(0).toUpperCase()}
-                                      </div>
-                                    )}
+                                    <UserAvatarButton
+                                      user={u}
+                                      imgClassName="w-7 h-7 border border-slate-200 text-xs"
+                                    />
                                     <span className="text-sm font-semibold text-slate-700 flex-1 truncate">
                                       {u.name}
                                     </span>
@@ -702,28 +696,15 @@ export const KanbanBoard: React.FC<{ projectId: string; teamMemberIds: string[] 
                       </div>
 
                       <div className="flex -space-x-1.5 shrink-0">
-                        {assignees.map((a, i) =>
-                          a.avatar ? (
-                            <img
-                              key={a.id}
-                              src={a.avatar}
-                              alt=""
-                              className="w-6 h-6 rounded-full border-2 border-white bg-slate-200 object-cover"
-                              style={{ zIndex: assignees.length - i }}
-                              title={a.name}
-                              draggable={false}
-                            />
-                          ) : (
-                            <div
-                              key={a.id}
-                              className="w-6 h-6 rounded-full border-2 border-white bg-indigo-100 text-indigo-600 text-[10px] font-bold flex items-center justify-center"
-                              style={{ zIndex: assignees.length - i }}
-                              title={a.name}
-                            >
-                              {(a.name ?? "?").charAt(0).toUpperCase()}
-                            </div>
-                          )
-                        )}
+                        {assignees.map((a, i) => (
+                          <UserAvatarButton
+                            key={a.id}
+                            user={a}
+                            imgClassName="w-6 h-6 border-2 border-white bg-slate-200 text-[10px]"
+                            className="relative"
+                            style={{ zIndex: assignees.length - i }}
+                          />
+                        ))}
                       </div>
                     </div>
                   </div>

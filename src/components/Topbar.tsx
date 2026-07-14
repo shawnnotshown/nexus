@@ -6,6 +6,7 @@ import { addDays, format, isValid, startOfDay } from "date-fns";
 import { useAppContext } from "../context/AppContext";
 import { useAuth } from "../context/AuthContext";
 import { useWorkspace } from "../context/WorkspaceContext";
+import { useUserProfile } from "../context/UserProfileContext";
 import { useMyAssignedProjectTodoItems } from "../hooks/useMyAssignedProjectTodoItems";
 import { collectUserIdentityIds, isUserAmongAssignees } from "../lib/firestoreMappers";
 import type { ProjectTodoItem, Task } from "../types";
@@ -33,6 +34,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
   const { currentUser, tasks, projects, users } = useAppContext();
   const { workspaceId } = useWorkspace();
   const { signOut, user: authUser } = useAuth();
+  const { openUserProfile } = useUserProfile();
   const [profileOpen, setProfileOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
@@ -256,6 +258,17 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
                 )}
               </div>
               <div className="py-1">
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setProfileOpen(false);
+                    openUserProfile(currentUser);
+                  }}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-blue-700 transition-colors"
+                >
+                  View profile
+                </button>
                 {onOpenSettings && (
                   <button
                     type="button"

@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAppContext } from "../context/AppContext";
+import { useUserProfile } from "../context/UserProfileContext";
 import { Send, Hash, Search, Plus, ChevronDown, ChevronRight, X } from "lucide-react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { cn } from "../lib/utils";
 import { directMessageChannelId } from "../lib/chatChannels";
+import { UserAvatarButton } from "../components/UserAvatarButton";
 import type { ProjectChannel } from "../types";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "🔥", "🎉", "👏"];
@@ -35,6 +37,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     setTyping,
     typingUsersByChannel,
   } = useAppContext();
+  const { openUserProfile } = useUserProfile();
 
   const defaultChannelId = useMemo(() => {
     const main = projectChannels.find((ch) => ch.isDefault);
@@ -434,27 +437,35 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                   const isActive = activeChannelId === dmId;
                   const online = isUserOnline(u.lastSeenAt, u.isOnline);
                   return (
-                    <button
+                    <div
                       key={u.id}
-                      type="button"
-                      onClick={() => setActiveChannelId(dmId)}
                       className={cn(
-                        "w-full flex items-center gap-2 px-2 py-1.5 text-left cursor-pointer text-sm transition-colors",
+                        "w-full flex items-center gap-2 px-2 py-1.5 text-left text-sm transition-colors",
                         isActive ? "text-gray-900 font-medium" : "text-gray-500 hover:text-gray-900"
                       )}
                     >
                       <span className="relative shrink-0">
-                        <img src={u.avatar} className="w-5 h-5 rounded-full object-cover" alt={u.name} />
+                        <UserAvatarButton
+                          user={u}
+                          imgClassName="w-5 h-5"
+                          stopPropagation={false}
+                        />
                         <span
                           className={cn(
-                            "absolute -bottom-0.5 -right-0.5 w-2 h-2 border border-white rounded-full",
+                            "absolute -bottom-0.5 -right-0.5 w-2 h-2 border border-white rounded-full pointer-events-none",
                             online ? "bg-green-500" : "bg-gray-300"
                           )}
                           title={online ? "Online" : "Offline"}
                         />
                       </span>
-                      <span className="truncate">{u.name}</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveChannelId(dmId)}
+                        className="min-w-0 flex-1 truncate text-left cursor-pointer"
+                      >
+                        {u.name}
+                      </button>
+                    </div>
                   );
                 })}
                 {!showAllDms && hiddenDmCount > 0 && (
@@ -585,11 +596,15 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 >
                   <div className="w-8 shrink-0">
                     {!isGrouped ? (
-                      <img
-                        src={author?.avatar}
-                        className="h-8 w-8 rounded-full object-cover"
-                        alt={author?.name}
-                      />
+                      author ? (
+                        <UserAvatarButton
+                          user={author}
+                          imgClassName="h-8 w-8"
+                          stopPropagation={false}
+                        />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-gray-200" />
+                      )
                     ) : (
                       <span className="hidden group-hover:block text-[10px] text-gray-300 text-right pr-1 pt-1 leading-none">
                         {format(new Date(msg.createdAt), "h:mm")}
@@ -600,14 +615,18 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                   <div className="min-w-0 flex-1">
                     {!isGrouped && (
                       <div className="flex items-baseline gap-2">
-                        <span
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (author) openUserProfile(author);
+                          }}
                           className={cn(
-                            "text-sm font-semibold",
+                            "text-sm font-semibold hover:underline",
                             isMe ? "text-gray-900" : "text-gray-900"
                           )}
                         >
                           {author?.name}
-                        </span>
+                        </button>
                         <span className="text-[11px] text-gray-400">
                           {format(new Date(msg.createdAt), "h:mm a")}
                         </span>

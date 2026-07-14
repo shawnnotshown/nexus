@@ -14,18 +14,29 @@ type MyTaskRow = KanbanRow | TodoRow;
 
 import { todoItemStatus } from "../lib/firestoreMappers";
 
-function statusBadgeClass(status: TaskStatus): string {
+function statusDotClass(status: TaskStatus): string {
   switch (status) {
     case "todo":
-      return "bg-blue-100 text-blue-800 border border-blue-300";
+      return "bg-blue-500";
     case "in-progress":
-      return "bg-amber-100 text-amber-800 border border-amber-300";
+      return "bg-amber-500";
     case "review":
-      return "bg-violet-100 text-violet-800 border border-violet-300";
+      return "bg-violet-500";
     case "done":
-      return "bg-emerald-100 text-emerald-800 border border-emerald-300";
+      return "bg-emerald-500";
     default:
-      return "bg-slate-100 text-slate-700 border border-slate-300";
+      return "bg-slate-400";
+  }
+}
+
+function priorityTextClass(priority: string): string {
+  switch (priority) {
+    case "urgent":
+      return "text-rose-600";
+    case "high":
+      return "text-amber-600";
+    default:
+      return "text-gray-400";
   }
 }
 
@@ -159,24 +170,12 @@ export const MyTasks: React.FC<{
                   className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-100 shadow-sm hover:shadow transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
                 >
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-600 bg-blue-50 px-2 flex py-1 rounded-md">
-                        {project?.name || "Unknown Project"}
-                      </span>
-                      <span className="text-[10px] uppercase tracking-wider font-semibold text-violet-600 bg-violet-50 px-2 py-1 rounded-md">
-                        Board
-                      </span>
-                      <span
-                        className={`text-[10px] uppercase flex tracking-wider font-semibold px-2 py-1 rounded-md ${
-                          task.priority === "urgent"
-                            ? "bg-rose-50 text-rose-600"
-                            : task.priority === "high"
-                              ? "bg-amber-50 text-amber-600"
-                              : "bg-gray-50 text-gray-500"
-                        }`}
-                      >
-                        {task.priority}
-                      </span>
+                    <div className="flex items-center gap-2 mb-2 text-[11px] uppercase tracking-wider font-semibold text-gray-400">
+                      <span className="text-gray-600">{project?.name || "Unknown Project"}</span>
+                      <span className="text-gray-300">·</span>
+                      <span>Board</span>
+                      <span className="text-gray-300">·</span>
+                      <span className={priorityTextClass(task.priority)}>{task.priority}</span>
                     </div>
                     <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1 leading-snug">{task.title}</h3>
                     <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-400">
@@ -187,9 +186,8 @@ export const MyTasks: React.FC<{
                   </div>
 
                   <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-gray-100">
-                    <div
-                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${statusBadgeClass(task.status)}`}
-                    >
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold capitalize text-gray-700 border border-gray-200 bg-white">
+                      <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(task.status)}`} />
                       {task.status.replace("-", " ")}
                     </div>
                     <button
@@ -215,13 +213,10 @@ export const MyTasks: React.FC<{
                 className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-100 shadow-sm hover:shadow transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-600 bg-blue-50 px-2 flex py-1 rounded-md">
-                      {project?.name || "Unknown Project"}
-                    </span>
-                    <span className="text-[10px] uppercase tracking-wider font-semibold text-sky-700 bg-sky-50 px-2 py-1 rounded-md">
-                      List
-                    </span>
+                  <div className="flex items-center gap-2 mb-2 text-[11px] uppercase tracking-wider font-semibold text-gray-400">
+                    <span className="text-gray-600">{project?.name || "Unknown Project"}</span>
+                    <span className="text-gray-300">·</span>
+                    <span>List</span>
                   </div>
                   <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1 leading-snug">{item.title}</h3>
                   <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-400">
@@ -233,9 +228,8 @@ export const MyTasks: React.FC<{
                 </div>
 
                 <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-gray-100">
-                  <div
-                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${statusBadgeClass(status)}`}
-                  >
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold capitalize text-gray-700 border border-gray-200 bg-white">
+                    <span className={`h-1.5 w-1.5 rounded-full ${statusDotClass(status)}`} />
                     {status.replace("-", " ")}
                   </div>
                   <button

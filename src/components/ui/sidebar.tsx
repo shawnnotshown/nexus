@@ -35,6 +35,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/AuthContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { useAppContext } from "@/context/AppContext";
+import { useUserProfile } from "@/context/UserProfileContext";
 
 const sidebarVariants = {
   open: { width: "15rem" },
@@ -92,6 +94,8 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, signOut } = useAuth();
   const { workspaceId } = useWorkspace();
+  const { currentUser } = useAppContext();
+  const { openUserProfile } = useUserProfile();
 
   const displayName = user?.displayName ?? undefined;
   const email = user?.email ?? undefined;
@@ -363,9 +367,15 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="flex cursor-pointer items-center gap-2"
+                        onSelect={() => openUserProfile(currentUser)}
+                      >
+                        <UserCircle className="h-4 w-4" /> View profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        className="flex cursor-pointer items-center gap-2"
                         onSelect={() => handleNavigate("settings")}
                       >
-                        <UserCircle className="h-4 w-4" /> Profile & settings
+                        <UserCog className="h-4 w-4" /> Profile & settings
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         className="flex cursor-pointer items-center gap-2"
