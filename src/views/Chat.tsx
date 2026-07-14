@@ -318,7 +318,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
         <div className="px-5 h-14 flex items-center border-b border-gray-100">
           <h2 className="font-semibold text-gray-900">Messages</h2>
         </div>
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-4 space-y-6">
           {projects.length === 0 ? (
             <p className="px-2 text-sm text-gray-400">Join or create a project to start chatting.</p>
           ) : (
