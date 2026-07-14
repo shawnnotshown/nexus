@@ -7,7 +7,7 @@ import { useProjectTodoCountsByProject } from "../hooks/useProjectTodoCountsByPr
 import { WorkProgressBar } from "../components/WorkProgressBar";
 import { combinedWorkProgressPercent, kanbanProgressStats } from "../lib/projectProgress";
 import { useMyAssignedProjectTodoItems } from "../hooks/useMyAssignedProjectTodoItems";
-import { CheckCircle, TrendingUp, Clock, AlertCircle } from "lucide-react";
+import { CheckCircle, TrendingUp, Clock, AlertCircle, Calendar } from "lucide-react";
 import { format, isValid } from "date-fns";
 import type { ProjectTodoItem, Task } from "../types";
 import type { MyTasksRowFocus } from "./MyTasks";
@@ -27,6 +27,27 @@ function dueSortKey(iso: string | undefined): number {
   const t = new Date(iso).getTime();
   return Number.isFinite(t) ? t : Number.POSITIVE_INFINITY;
 }
+
+const PROJECT_COLORS = [
+  "bg-pink-100 text-pink-600",
+  "bg-teal-100 text-teal-600",
+  "bg-amber-100 text-amber-600",
+  "bg-blue-100 text-blue-600",
+  "bg-violet-100 text-violet-600",
+  "bg-emerald-100 text-emerald-600",
+];
+
+function projectInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+}
+
+const ACTIVE_PROJECTS_LIMIT = 4;
+const UPCOMING_TASKS_LIMIT = 5;
 
 export const Dashboard: React.FC<{
   onProjectClick: (id: string) => void;
@@ -86,20 +107,22 @@ export const Dashboard: React.FC<{
     });
   }, [myKanbanTasks, assignedTodoRows]);
   const nearestDueRow = upcomingRows[0];
+  const visibleProjects = projects.slice(0, ACTIVE_PROJECTS_LIMIT);
+  const visibleUpcomingRows = upcomingRows.slice(0, UPCOMING_TASKS_LIMIT);
 
   const bentoStatCards = [
-    { label: "Total Tasks", value: totalAssigned, icon: CheckCircle, color: "text-blue-600", span: "md:col-span-3" },
-    { label: "Completed", value: completedTasks, icon: TrendingUp, color: "text-emerald-600", span: "md:col-span-3" },
-    { label: "Pending", value: pendingTasks, icon: Clock, color: "text-amber-600", span: "md:col-span-3" },
-    { label: "Urgent", value: urgentTasks, icon: AlertCircle, color: "text-rose-600", span: "md:col-span-3" },
+    { label: "Total Tasks", value: totalAssigned, icon: CheckCircle, iconBg: "bg-blue-500", span: "md:col-span-3" },
+    { label: "Completed", value: completedTasks, icon: TrendingUp, iconBg: "bg-emerald-500", span: "md:col-span-3" },
+    { label: "Pending", value: pendingTasks, icon: Clock, iconBg: "bg-amber-500", span: "md:col-span-3" },
+    { label: "Urgent", value: urgentTasks, icon: AlertCircle, iconBg: "bg-rose-500", span: "md:col-span-3" },
   ] as const;
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pt-14 md:pt-0">
       <div className="hidden md:flex md:flex-row justify-between items-start md:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-black text-indigo-900 tracking-tight">Welcome back, {currentUser.name.split(' ')[0]} 👋</h1>
-          <p className="text-slate-500 mt-1 font-medium">Here's what's happening with your projects today.</p>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Welcome back, {currentUser.name.split(' ')[0]} 👋</h1>
+          <p className="text-gray-500 mt-1 font-medium">Here's what's happening with your projects today.</p>
         </div>
       </div>
 
@@ -107,42 +130,43 @@ export const Dashboard: React.FC<{
         {bentoStatCards.map((stat, i) => (
           <div
             key={i}
-            className={`bg-white p-5 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 flex items-center gap-4 hover:shadow-indigo-100/80 transition-shadow ${stat.span}`}
+            className={`bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow transition-shadow ${stat.span}`}
           >
-            <div className={stat.color}>
-              <stat.icon size={24} />
+            <div className={`${stat.iconBg} w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0`}>
+              <stat.icon size={22} />
             </div>
             <div>
-              <div className="text-2xl font-black text-indigo-900">{stat.value}</div>
-              <div className="text-sm font-medium text-slate-500">{stat.label}</div>
+              <div className="text-2xl font-bold text-gray-900">{stat.value}</div>
+              <div className="text-sm font-medium text-gray-500">{stat.label}</div>
             </div>
           </div>
         ))}
 
-        <div className="bg-white p-6 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 md:col-span-6">
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm md:col-span-6">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-black uppercase tracking-wide text-indigo-500">Completion Rate</h3>
-            <span className="text-xs font-semibold text-slate-500">{myProjectsCount} active projects</span>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Completion Rate</h3>
+            <span className="text-xs font-semibold text-gray-500">{myProjectsCount} active projects</span>
           </div>
-          <p className="text-4xl font-black text-indigo-900 mt-3">{completionRate}%</p>
-          <p className="text-sm text-slate-500 mt-1">Across your assigned kanban + to-do work.</p>
+          <p className="text-4xl font-bold text-blue-600 mt-3">{completionRate}%</p>
+          <p className="text-sm text-gray-500 mt-1">Across your assigned kanban + to-do work.</p>
           <div className="mt-4">
             <WorkProgressBar
               label="Progress"
               percent={completionRate}
-              trackClassName="bg-slate-200"
+              trackClassName="bg-gray-200"
             />
           </div>
         </div>
 
-        <div className="bg-white p-6 rounded-[2rem] border border-indigo-50 shadow-xl shadow-indigo-100/40 md:col-span-6">
-          <h3 className="text-sm font-black uppercase tracking-wide text-indigo-500">Next Deadline</h3>
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm md:col-span-6">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-gray-500">Next Deadline</h3>
           {nearestDueRow ? (
             <div className="mt-4 space-y-2">
-              <p className="text-lg font-bold text-indigo-900">
+              <p className="text-lg font-bold text-gray-900">
                 {nearestDueRow.kind === "kanban" ? nearestDueRow.task.title : nearestDueRow.item.title}
               </p>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-gray-500 flex items-center gap-1.5">
+                <Calendar size={14} className="text-gray-400" />
                 Due {formatDueLabel(nearestDueRow.kind === "kanban" ? nearestDueRow.task.dueDate : nearestDueRow.item.dueDate)}
               </p>
               <button
@@ -156,32 +180,35 @@ export const Dashboard: React.FC<{
                         itemId: nearestDueRow.item.id,
                       })
                 }
-                className="mt-2 bg-indigo-100 text-indigo-700 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-200"
+                className="mt-2 bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-blue-700 transition-colors"
               >
                 Open Task
               </button>
             </div>
           ) : (
-            <div className="mt-4 text-slate-500 text-sm">No upcoming deadlines right now.</div>
+            <div className="mt-4 text-gray-500 text-sm">No upcoming deadlines right now.</div>
           )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6 pb-8">
           {/* Active Projects */}
-          <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8 md:col-span-7">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 md:col-span-7">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-indigo-900">Active Projects</h2>
+              <h2 className="text-xl font-bold text-gray-900">Active Projects</h2>
               <button
                 type="button"
                 onClick={onViewAllProjects}
-                className="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider hover:bg-indigo-200"
+                className="bg-blue-50 text-blue-600 px-3 py-1 rounded-xl text-xs font-semibold uppercase tracking-wider hover:bg-blue-100 transition-colors"
               >
                 View All
               </button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {projects.map((project) => {
+            <div className="space-y-4 max-h-80 overflow-y-auto pr-1">
+              {visibleProjects.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4 text-center">No projects yet.</p>
+              ) : (
+                visibleProjects.map((project, idx) => {
                 const kanban = kanbanProgressStats(tasks.filter((t) => t.projectId === project.id));
                 const todoAgg = todoCountsByProject[project.id] ?? { total: 0, completed: 0 };
                 const progressPct = combinedWorkProgressPercent(
@@ -189,35 +216,41 @@ export const Dashboard: React.FC<{
                   { done: todoAgg.completed, total: todoAgg.total },
                   project.progress
                 );
+                const colorClass = PROJECT_COLORS[idx % PROJECT_COLORS.length];
                 return (
                 <div 
                   key={project.id} 
                   onClick={() => onProjectClick(project.id)}
-                  className="p-5 rounded-3xl border border-slate-100 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer bg-white shadow-sm group"
+                  className="p-4 rounded-xl border border-gray-100 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer bg-white group flex items-center gap-4"
                 >
-                  <h3 className="font-bold text-slate-800 mb-2 group-hover:text-indigo-700">{project.name}</h3>
-                  <p className="text-sm text-slate-500 mb-4 line-clamp-2">{project.description}</p>
-                  <WorkProgressBar
-                    label="Progress "
-                    percent={progressPct}
-                    trackClassName="bg-slate-200"
-                  />
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold shrink-0 ${colorClass}`}>
+                    {projectInitials(project.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-gray-800 mb-0.5 group-hover:text-blue-600 truncate">{project.name}</h3>
+                    <p className="text-sm text-gray-500 mb-2 line-clamp-1">{project.description}</p>
+                    <WorkProgressBar
+                      label="Progress "
+                      percent={progressPct}
+                      trackClassName="bg-gray-200"
+                    />
+                  </div>
                 </div>
                 );
-              })}
+              })
+              )}
             </div>
           </div>
 
           {/* Recent Tasks */}
-          <div className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 p-8 md:col-span-5">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-8 md:col-span-5">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-indigo-900">My Upcoming Tasks</h2>
+              <h2 className="text-xl font-bold text-gray-900">My Upcoming Tasks</h2>
             </div>
-            <div className="space-y-3">
-              {upcomingRows.slice(0, 5).map((row) => {
+            <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+              {visibleUpcomingRows.map((row) => {
                 if (row.kind === "kanban") {
                   const task = row.task;
-                  const hot = task.priority === "urgent" || task.priority === "high";
                   return (
                     <div
                       key={`k:${task.id}`}
@@ -230,26 +263,21 @@ export const Dashboard: React.FC<{
                           onOpenMyTasks({ kind: "kanban", taskId: task.id });
                         }
                       }}
-                      className={`flex items-center justify-between p-4 rounded-2xl transition-colors cursor-pointer ${hot ? "bg-indigo-50 border-white border-l-4 border-l-indigo-500 shadow-sm hover:bg-indigo-100/80" : "bg-white border border-slate-100 shadow-sm hover:border-indigo-100"}`}
+                      className="flex items-center justify-between p-4 rounded-xl transition-colors cursor-pointer bg-white border border-gray-100 shadow-sm hover:border-blue-200"
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
                         <input
                           type="checkbox"
                           readOnly
-                          className={`w-5 h-5 rounded ${hot ? "border-indigo-300 text-indigo-600" : "border-slate-300 text-indigo-600"}`}
+                          className="w-5 h-5 rounded border-gray-300 text-blue-600 shrink-0"
                         />
-                        <div>
-                          <div className={`font-bold ${hot ? "text-indigo-900" : "text-slate-700"}`}>{task.title}</div>
-                          <div className="text-[10px] text-slate-400 font-bold flex items-center gap-2 uppercase tracking-wide mt-1">
-                            <span>DUE: {formatDueLabel(task.dueDate)}</span>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-gray-800 truncate">{task.title}</div>
+                          <div className="text-xs text-gray-400 font-medium mt-1">
+                            Due: {formatDueLabel(task.dueDate)}
                           </div>
                         </div>
                       </div>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${task.priority === "urgent" ? "bg-rose-100 text-rose-600" : "bg-indigo-100 text-indigo-600"}`}
-                      >
-                        {task.status.replace("-", " ")}
-                      </span>
                     </div>
                   );
                 }
@@ -268,64 +296,26 @@ export const Dashboard: React.FC<{
                         onOpenMyTasks({ kind: "todo", projectId, itemId: item.id });
                       }
                     }}
-                    className="flex items-center justify-between p-4 rounded-2xl transition-colors bg-white border border-slate-100 shadow-sm hover:border-indigo-100 cursor-pointer"
+                    className="flex items-center justify-between p-4 rounded-xl transition-colors bg-white border border-gray-100 shadow-sm hover:border-blue-200 cursor-pointer"
                   >
-                    <div className="flex items-center gap-3">
-                      <input type="checkbox" readOnly className="w-5 h-5 rounded border-slate-300 text-indigo-600" />
-                      <div>
-                        <div className="font-bold text-slate-700">{item.title}</div>
-                        <div className="text-[10px] text-slate-400 font-bold flex items-center gap-2 uppercase tracking-wide mt-1">
-                          <span>DUE: {formatDueLabel(item.dueDate)}</span>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <input type="checkbox" readOnly className="w-5 h-5 rounded border-gray-300 text-blue-600 shrink-0" />
+                      <div className="min-w-0">
+                        <div className="font-semibold text-gray-800 truncate">{item.title}</div>
+                        <div className="text-xs text-gray-400 font-medium mt-1">
+                          Due: {formatDueLabel(item.dueDate)}
                         </div>
                       </div>
                     </div>
                   </div>
                 );
               })}
-              {pendingTasks === 0 && (
-                <div className="text-center py-8 text-slate-500">
+              {pendingTasks === 0 && visibleUpcomingRows.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
                   <CheckCircle size={32} className="mx-auto text-emerald-400 mb-3" />
                   <p>All caught up! Great job.</p>
                 </div>
               )}
-            </div>
-          </div>
-
-          <div className="hidden bg-gradient-to-br from-indigo-600 via-indigo-500 to-violet-500 rounded-[2.5rem] shadow-xl shadow-indigo-200/50 p-8 text-white md:col-span-12 md:block">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] font-bold text-indigo-100">Quick Actions</p>
-                <h3 className="text-2xl font-black mt-2">Keep momentum going today</h3>
-                <p className="text-indigo-100 mt-2 text-sm">
-                  Jump directly to projects or tasks and keep your sprint moving.
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  onClick={onViewAllProjects}
-                  className="bg-white text-indigo-700 px-4 py-2 rounded-full text-xs font-black uppercase tracking-wide hover:bg-indigo-50"
-                >
-                  Browse Projects
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    nearestDueRow
-                      ? nearestDueRow.kind === "kanban"
-                        ? onOpenMyTasks({ kind: "kanban", taskId: nearestDueRow.task.id })
-                        : onOpenMyTasks({
-                            kind: "todo",
-                            projectId: nearestDueRow.projectId,
-                            itemId: nearestDueRow.item.id,
-                          })
-                      : onViewAllProjects()
-                  }
-                  className="bg-indigo-800/40 text-white px-4 py-2 rounded-full text-xs font-black uppercase tracking-wide border border-indigo-200/30 hover:bg-indigo-800/60"
-                >
-                  View My Tasks
-                </button>
-              </div>
             </div>
           </div>
       </div>

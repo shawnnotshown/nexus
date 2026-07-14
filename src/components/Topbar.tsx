@@ -141,11 +141,11 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
             aria-haspopup="menu"
             aria-expanded={notificationsOpen}
             aria-label="Notifications"
-            className="relative p-1 text-indigo-600 hover:text-indigo-700 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2 rounded-md"
+            className="relative p-1 text-blue-600 hover:text-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 rounded-md"
           >
             <Bell size={18} />
             {notificationRows.length > 0 && (
-              <span className="absolute top-0 right-0 min-h-2.5 min-w-2.5 px-0.5 rounded-full bg-rose-500 ring-2 ring-white text-[9px] font-black text-white flex items-center justify-center leading-none">
+              <span className="absolute top-0 right-0 min-h-2.5 min-w-2.5 px-0.5 rounded-full bg-rose-500 ring-2 ring-white text-[9px] font-bold text-white flex items-center justify-center leading-none">
                 {notificationRows.length > 9 ? "9+" : notificationRows.length}
               </span>
             )}
@@ -154,15 +154,15 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
           {notificationsOpen && (
             <div
               role="menu"
-              className="absolute right-0 mt-3 w-80 max-h-[min(24rem,calc(100vh-6rem))] overflow-hidden flex flex-col bg-white rounded-xl shadow-lg shadow-indigo-200/40 border border-indigo-100 z-30"
+              className="absolute right-0 mt-3 w-80 max-h-[min(24rem,calc(100vh-6rem))] overflow-hidden flex flex-col bg-white rounded-xl shadow-sm border border-gray-100 z-30"
             >
-              <div className="px-4 py-3 border-b border-indigo-50 shrink-0">
-                <p className="text-sm font-black text-indigo-900">Notifications</p>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Due dates and urgent work assigned to you</p>
+              <div className="px-4 py-3 border-b border-gray-100 shrink-0">
+                <p className="text-sm font-bold text-gray-900">Notifications</p>
+                <p className="text-xs text-gray-500 font-medium mt-0.5">Due dates and urgent work assigned to you</p>
               </div>
               <div className="overflow-y-auto flex-1 py-1">
                 {notificationRows.length === 0 ? (
-                  <p className="px-4 py-8 text-center text-sm text-slate-500 font-medium">{"You're all caught up."}</p>
+                  <p className="px-4 py-8 text-center text-sm text-gray-500 font-medium">{"You're all caught up."}</p>
                 ) : (
                   notificationRows.map((row) => {
                     const title = row.kind === "kanban" ? row.task.title : row.item.title;
@@ -194,17 +194,17 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
                           setNotificationsOpen(false);
                           onNavigateToMyTasks(focus);
                         }}
-                        className="w-full flex gap-3 px-3 py-2.5 text-left hover:bg-indigo-50/80 transition-colors disabled:opacity-60 disabled:cursor-default border-b border-indigo-50/80 last:border-b-0"
+                        className="w-full flex gap-3 px-3 py-2.5 text-left hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-default border-b border-gray-100 last:border-b-0"
                       >
                         <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${iconClass}`}>
                           <Icon size={18} />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="text-xs font-bold uppercase tracking-wide text-slate-400">{variantLabel}</p>
-                          <p className="text-sm font-bold text-slate-800 truncate">{title}</p>
-                          <p className="text-xs text-slate-500 truncate">{row.projectName}</p>
+                          <p className="text-xs font-bold uppercase tracking-wide text-gray-400">{variantLabel}</p>
+                          <p className="text-sm font-bold text-gray-800 truncate">{title}</p>
+                          <p className="text-xs text-gray-500 truncate">{row.projectName}</p>
                           {dueLabel && (
-                            <p className="text-xs font-semibold text-slate-500 mt-0.5">Due {dueLabel}</p>
+                            <p className="text-xs font-semibold text-gray-500 mt-0.5">Due {dueLabel}</p>
                           )}
                         </div>
                       </button>
@@ -226,17 +226,17 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
             aria-haspopup="menu"
             aria-expanded={profileOpen}
             aria-label="Open profile menu"
-            className="block rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:ring-offset-2"
+            className="block rounded-full focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2"
           >
             {currentUser.avatar ? (
               <img
                 src={currentUser.avatar}
                 alt={currentUser.name}
-                className="w-10 h-10 rounded-full border-2 border-white shadow-md object-cover"
+                className="w-10 h-10 rounded-full border-2 border-white shadow-sm object-cover"
               />
             ) : (
               <div
-                className="w-10 h-10 rounded-full border-2 border-white shadow-md bg-indigo-200 text-indigo-900 font-black text-sm flex items-center justify-center"
+                className="w-10 h-10 rounded-full border-2 border-white shadow-sm bg-blue-100 text-blue-700 font-bold text-sm flex items-center justify-center"
                 aria-hidden
               >
                 {(currentUser.name || "?").charAt(0).toUpperCase()}
@@ -247,12 +247,12 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
           {profileOpen && (
             <div
               role="menu"
-              className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-lg shadow-indigo-200/40 border border-indigo-100 overflow-hidden z-30"
+              className="absolute right-0 mt-3 w-56 bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden z-30"
             >
-              <div className="px-4 py-3 border-b border-indigo-50">
-                <p className="text-sm font-bold text-slate-800 truncate">{currentUser.name}</p>
+              <div className="px-4 py-3 border-b border-gray-100">
+                <p className="text-sm font-bold text-gray-800 truncate">{currentUser.name}</p>
                 {currentUser.role && (
-                  <p className="text-xs text-slate-500 truncate">{currentUser.role}</p>
+                  <p className="text-xs text-gray-500 truncate">{currentUser.role}</p>
                 )}
               </div>
               <div className="py-1">
@@ -264,7 +264,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
                       setProfileOpen(false);
                       onOpenSettings();
                     }}
-                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-blue-700 transition-colors"
                   >
                     <SettingsIcon size={16} />
                     Settings
@@ -277,7 +277,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onOpenSettings, onNavigateToMyTa
                     setProfileOpen(false);
                     void signOut();
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                  className="w-full flex items-center gap-2 px-4 py-2.5 text-sm font-semibold text-gray-600 hover:bg-gray-50 hover:text-blue-700 transition-colors"
                 >
                   <LogOut size={16} />
                   Logout

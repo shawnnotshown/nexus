@@ -40,6 +40,13 @@ import {
 import { exportTodosToPdf } from "../lib/exportTodosPdf";
 import { todoItemStatus } from "../lib/firestoreMappers";
 import { cn } from "../lib/utils";
+import { RichTextEditor, RichTextViewer } from "../components/RichTextEditor";
+import {
+  EMPTY_RICH_TEXT_DOC,
+  extractTextPreview,
+  isRichTextEmpty,
+  richTextToPlainText,
+} from "../lib/richText";
 import type { ProjectScheduleEvent, TaskStatus } from "../types";
 
 const TODO_BOARD_COLUMNS: {
@@ -97,9 +104,14 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
   const [newTaskDeadline, setNewTaskDeadline] = useState<string>("");
   const [showProjectMenu, setShowProjectMenu] = useState<boolean>(false);
   const [newThreadTitle, setNewThreadTitle] = useState("");
-  const [newThreadBody, setNewThreadBody] = useState("");
-  const [showNewThreadForm, setShowNewThreadForm] = useState(false);
+  const [newThreadBody, setNewThreadBody] = useState(EMPTY_RICH_TEXT_DOC);
+  const [boardThreadForm, setBoardThreadForm] = useState<null | { mode: "create" } | { mode: "edit"; id: string }>(null);
   const [newBoardComment, setNewBoardComment] = useState("");
+  const [editingActiveThread, setEditingActiveThread] = useState(false);
+  const [boardThreadToDeleteId, setBoardThreadToDeleteId] = useState<string | null>(null);
+  const [editingBoardCommentId, setEditingBoardCommentId] = useState<string | null>(null);
+  const [editBoardCommentBody, setEditBoardCommentBody] = useState("");
+  const [boardCommentToDelete, setBoardCommentToDelete] = useState<{ threadId: string; commentId: string } | null>(null);
   const [newTodoComment, setNewTodoComment] = useState("");
   const [showAssigneePicker, setShowAssigneePicker] = useState(false);
   const [showDocsComingSoon, setShowDocsComingSoon] = useState(false);
@@ -132,7 +144,11 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setActiveTodoList(null);
     setActiveTodoTask(null);
     setActiveBoardThreadId(null);
-    setShowNewThreadForm(false);
+    setBoardThreadForm(null);
+    setEditingActiveThread(false);
+    setBoardThreadToDeleteId(null);
+    setEditingBoardCommentId(null);
+    setBoardCommentToDelete(null);
     setShowDocsComingSoon(false);
     setShowInviteModal(false);
     setInviteEmail("");
@@ -155,6 +171,8 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
 
   const todoLists = extras.todoLists;
   const scheduleEventToDelete = extras.scheduleEvents.find((event) => event.id === scheduleEventToDeleteId);
+  const boardThreadToDelete = extras.threads.find((thread) => thread.id === boardThreadToDeleteId);
+  const currentUserId = user?.uid ?? currentUser.id;
 
   const todoProgressStats = useMemo(() => todoListsProgressStats(todoLists), [todoLists]);
   const todoOnlyPercent = useMemo(
@@ -292,7 +310,12 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     setActiveTodoList(null);
     setActiveTodoTask(null);
     setActiveBoardThreadId(null);
-    setShowNewThreadForm(false);
+    setBoardThreadForm(null);
+    setEditingActiveThread(false);
+    setBoardThreadToDeleteId(null);
+    setEditingBoardCommentId(null);
+    setEditBoardCommentBody("");
+    setBoardCommentToDelete(null);
     setShowNewScheduleEventForm(false);
     setEditingScheduleEventId(null);
     setScheduleEventToDeleteId(null);
@@ -408,6 +431,73 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
     if (!scheduleEventToDeleteId) return;
     void extras.deleteScheduleEvent(scheduleEventToDeleteId);
     setScheduleEventToDeleteId(null);
+  };
+
+  const resetBoardThreadForm = () => {
+    setBoardThreadForm(null);
+    setNewThreadTitle("");
+    setNewThreadBody(EMPTY_RICH_TEXT_DOC);
+  };
+
+  const startEditingBoardThread = (threadId: string) => {
+    const thread = extras.threads.find((t) => t.id === threadId);
+    if (!thread) return;
+    setBoardThreadForm({ mode: "edit", id: threadId });
+    setNewThreadTitle(thread.title);
+    setNewThreadBody(thread.content || EMPTY_RICH_TEXT_DOC);
+    setEditingActiveThread(false);
+    setActiveBoardThreadId(null);
+  };
+
+  const handleSaveBoardThread = async () => {
+    if (!newThreadTitle.trim() || isRichTextEmpty(newThreadBody)) return;
+    if (boardThreadForm?.mode === "edit") {
+      await extras.updateBoardThread(boardThreadForm.id, {
+        title: newThreadTitle.trim(),
+        content: newThreadBody,
+      });
+    } else {
+      await extras.createBoardThread(newThreadTitle.trim(), newThreadBody);
+    }
+    resetBoardThreadForm();
+  };
+
+  const handleConfirmDeleteBoardThread = async () => {
+    if (!boardThreadToDeleteId) return;
+    await extras.deleteBoardThread(boardThreadToDeleteId);
+    if (activeBoardThreadId === boardThreadToDeleteId) {
+      setActiveBoardThreadId(null);
+    }
+    if (boardThreadForm?.mode === "edit" && boardThreadForm.id === boardThreadToDeleteId) {
+      resetBoardThreadForm();
+    }
+    setBoardThreadToDeleteId(null);
+  };
+
+  const handleSaveActiveThreadEdit = async (threadId: string) => {
+    if (!newThreadTitle.trim() || isRichTextEmpty(newThreadBody)) return;
+    await extras.updateBoardThread(threadId, {
+      title: newThreadTitle.trim(),
+      content: newThreadBody,
+    });
+    setEditingActiveThread(false);
+  };
+
+  const handleSaveBoardCommentEdit = async (threadId: string, commentId: string) => {
+    if (!editBoardCommentBody.trim()) return;
+    await extras.updateBoardThreadComment(threadId, commentId, editBoardCommentBody.trim());
+    setEditingBoardCommentId(null);
+    setEditBoardCommentBody("");
+  };
+
+  const handleConfirmDeleteBoardComment = async () => {
+    if (!boardCommentToDelete) return;
+    await extras.deleteBoardThreadComment(boardCommentToDelete.threadId, boardCommentToDelete.commentId);
+    if (editingBoardCommentId === boardCommentToDelete.commentId) {
+      setEditingBoardCommentId(null);
+      setEditBoardCommentBody("");
+    }
+    setBoardCommentToDelete(null);
   };
 
   const copyBoardText = async (text: string, feedbackKey: string) => {
@@ -1466,35 +1556,108 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
           const author = users.find((u) => u.id === activeThread.userId);
           return (
             <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
-              <div className="flex items-center justify-between mb-6">
-                <div className="flex items-center gap-3">
+              <div className="flex items-center justify-between mb-6 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
                     onClick={() => {
                       setActiveBoardThreadId(null);
+                      setEditingActiveThread(false);
+                      setEditingBoardCommentId(null);
                       setNewBoardComment("");
                     }}
-                    className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-200"
+                    className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-500 hover:bg-slate-200 shrink-0"
                   >
                     <ArrowLeft size={18} className="stroke-[3px]" />
                   </button>
-                  <h2 className="text-xl font-black text-indigo-900 tracking-tight line-clamp-1">{activeThread.title}</h2>
+                  {editingActiveThread ? (
+                    <input
+                      type="text"
+                      value={newThreadTitle}
+                      onChange={(e) => setNewThreadTitle(e.target.value)}
+                      className="min-w-0 flex-1 rounded-xl border border-slate-200 px-4 py-2 text-lg font-black text-indigo-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                    />
+                  ) : (
+                    <h2 className="text-xl font-black text-indigo-900 tracking-tight line-clamp-1">{activeThread.title}</h2>
+                  )}
                 </div>
-                <button onClick={handleCloseWidget} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200">
-                  <X size={20} className="stroke-[3px]" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {!editingActiveThread && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingActiveThread(true);
+                          setNewThreadTitle(activeThread.title);
+                          setNewThreadBody(activeThread.content || EMPTY_RICH_TEXT_DOC);
+                        }}
+                        className="h-9 w-9 rounded-full border border-slate-200 bg-slate-50 flex items-center justify-center text-slate-500 hover:bg-slate-100 hover:text-indigo-600 hover:border-slate-300 transition-colors"
+                        aria-label="Edit message"
+                        title="Edit message"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBoardThreadToDeleteId(activeThread.id)}
+                        className="h-9 w-9 rounded-full border border-rose-100 bg-rose-50 flex items-center justify-center text-rose-500 hover:bg-rose-100 hover:text-rose-700 hover:border-rose-200 transition-colors"
+                        aria-label="Delete message"
+                        title="Delete message"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    </>
+                  )}
+                  <button onClick={handleCloseWidget} className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200">
+                    <X size={20} className="stroke-[3px]" />
+                  </button>
+                </div>
               </div>
               <div className="relative mb-6 group">
-                <p className="text-slate-600 text-sm font-medium whitespace-pre-wrap select-text pr-10">{activeThread.content}</p>
-                <button
-                  type="button"
-                  onClick={() => void copyBoardText(activeThread.content, `thread-${activeThread.id}`)}
-                  className={`absolute top-0 right-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${boardCopyButtonClass(boardCopyFeedback === `thread-${activeThread.id}`)}`}
-                  aria-label={boardCopyFeedback === `thread-${activeThread.id}` ? "Copied" : "Copy message"}
-                  title={boardCopyFeedback === `thread-${activeThread.id}` ? "Copied!" : "Copy message"}
-                >
-                  {renderBoardCopyIcon(`thread-${activeThread.id}`, 16)}
-                </button>
+                {editingActiveThread ? (
+                  <div className="space-y-3">
+                    <RichTextEditor
+                      value={newThreadBody}
+                      onChange={setNewThreadBody}
+                      placeholder="What do you want to discuss?"
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveActiveThreadEdit(activeThread.id)}
+                        className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold hover:bg-indigo-700"
+                      >
+                        Save changes
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingActiveThread(false);
+                          setNewThreadTitle(activeThread.title);
+                          setNewThreadBody(activeThread.content || EMPTY_RICH_TEXT_DOC);
+                        }}
+                        className="px-4 py-2 rounded-xl text-sm font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="text-slate-600 text-sm font-medium select-text pr-10">
+                      <RichTextViewer content={activeThread.content} />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void copyBoardText(richTextToPlainText(activeThread.content), `thread-${activeThread.id}`)}
+                      className={`absolute top-0 right-0 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${boardCopyButtonClass(boardCopyFeedback === `thread-${activeThread.id}`)}`}
+                      aria-label={boardCopyFeedback === `thread-${activeThread.id}` ? "Copied" : "Copy message"}
+                      title={boardCopyFeedback === `thread-${activeThread.id}` ? "Copied!" : "Copy message"}
+                    >
+                      {renderBoardCopyIcon(`thread-${activeThread.id}`, 16)}
+                    </button>
+                  </>
+                )}
               </div>
               <p className="text-xs font-bold text-slate-400 mb-4">
                 {author?.name ?? "Member"} · {format(new Date(activeThread.createdAt), "MMM d, yyyy h:mm a")}
@@ -1504,6 +1667,8 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 {extras.threadComments.map((c) => {
                   const u = users.find((x) => x.id === c.userId);
                   const initial = (u?.name ?? "?").charAt(0).toUpperCase();
+                  const canManageComment = c.userId === currentUserId;
+                  const isEditingComment = editingBoardCommentId === c.id;
                   return (
                     <div key={c.id} className="flex gap-3">
                       {u?.avatar ? (
@@ -1512,18 +1677,78 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                         <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-600 text-xs font-bold flex items-center justify-center">{initial}</div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <div className="relative group/reply">
-                          <div className="bg-slate-50 rounded-2xl rounded-tl-none p-3 pr-10 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap select-text">{c.content}</div>
-                          <button
-                            type="button"
-                            onClick={() => void copyBoardText(c.content, `reply-${c.id}`)}
-                            className={`absolute top-2 right-2 w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${boardCopyFeedback === `reply-${c.id}` ? "text-emerald-600 bg-emerald-50" : "text-slate-400 hover:text-indigo-600 hover:bg-white/80"}`}
-                            aria-label={boardCopyFeedback === `reply-${c.id}` ? "Copied" : "Copy reply"}
-                            title={boardCopyFeedback === `reply-${c.id}` ? "Copied!" : "Copy reply"}
-                          >
-                            {renderBoardCopyIcon(`reply-${c.id}`, 14)}
-                          </button>
-                        </div>
+                        {isEditingComment ? (
+                          <div className="space-y-2">
+                            <textarea
+                              value={editBoardCommentBody}
+                              onChange={(e) => setEditBoardCommentBody(e.target.value)}
+                              placeholder="Edit your reply…"
+                              rows={3}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-200"
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void handleSaveBoardCommentEdit(activeThread.id, c.id)}
+                                className="bg-indigo-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-indigo-700"
+                              >
+                                Save
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingBoardCommentId(null);
+                                  setEditBoardCommentBody("");
+                                }}
+                                className="px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-200 text-slate-600 hover:bg-slate-50"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="relative group/reply">
+                            <div className="bg-slate-50 rounded-2xl rounded-tl-none p-3 pr-16 border border-slate-100 text-sm text-slate-700 whitespace-pre-wrap select-text">
+                              {richTextToPlainText(c.content) || c.content}
+                            </div>
+                            <div className="absolute top-2 right-2 flex items-center gap-1">
+                              {canManageComment && (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingBoardCommentId(c.id);
+                                      setEditBoardCommentBody(richTextToPlainText(c.content) || c.content);
+                                    }}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-white/80 transition-colors"
+                                    aria-label="Edit reply"
+                                    title="Edit reply"
+                                  >
+                                    <Pencil size={13} />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setBoardCommentToDelete({ threadId: activeThread.id, commentId: c.id })}
+                                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-white/80 transition-colors"
+                                    aria-label="Delete reply"
+                                    title="Delete reply"
+                                  >
+                                    <Trash2 size={13} />
+                                  </button>
+                                </>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => void copyBoardText(richTextToPlainText(c.content) || c.content, `reply-${c.id}`)}
+                                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-colors ${boardCopyFeedback === `reply-${c.id}` ? "text-emerald-600 bg-emerald-50" : "text-slate-400 hover:text-indigo-600 hover:bg-white/80"}`}
+                                aria-label={boardCopyFeedback === `reply-${c.id}` ? "Copied" : "Copy reply"}
+                                title={boardCopyFeedback === `reply-${c.id}` ? "Copied!" : "Copy reply"}
+                              >
+                                {renderBoardCopyIcon(`reply-${c.id}`, 14)}
+                              </button>
+                            </div>
+                          </div>
+                        )}
                         <span className="text-[10px] font-bold text-slate-400 mt-1 ml-1 block">
                           {u?.name ?? "Member"} · {format(new Date(c.createdAt), "MMM d, h:mm a")}
                         </span>
@@ -1555,20 +1780,17 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
             </div>
           );
         }
-        if (showNewThreadForm) {
+        if (boardThreadForm) {
+          const isEditing = boardThreadForm.mode === "edit";
           return (
             <div className="h-full flex flex-col animate-in fade-in zoom-in-95 duration-200 px-4 pb-4 pt-4 md:px-6 md:pb-6 md:pt-6">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-2xl font-black text-indigo-900 tracking-tight flex items-center gap-3">
-                  <MessageSquare size={20} className="stroke-[3px]" /> New thread
+                  <MessageSquare size={20} className="stroke-[3px]" /> {isEditing ? "Edit message" : "New message"}
                 </h2>
                 <button
                   type="button"
-                  onClick={() => {
-                    setShowNewThreadForm(false);
-                    setNewThreadTitle("");
-                    setNewThreadBody("");
-                  }}
+                  onClick={resetBoardThreadForm}
                   className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200"
                 >
                   <X size={20} />
@@ -1581,25 +1803,20 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 placeholder="Title"
                 className="w-full mb-3 rounded-xl border border-slate-200 px-4 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-indigo-200"
               />
-              <textarea
-                value={newThreadBody}
-                onChange={(e) => setNewThreadBody(e.target.value)}
-                placeholder="What do you want to discuss?"
-                rows={6}
-                className="w-full flex-1 min-h-[160px] rounded-xl border border-slate-200 px-4 py-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-200 mb-4"
-              />
+              <div className="flex-1 min-h-0 mb-4">
+                <RichTextEditor
+                  value={newThreadBody}
+                  onChange={setNewThreadBody}
+                  placeholder="What do you want to discuss?"
+                  className="h-full"
+                />
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  if (!newThreadTitle.trim() || !newThreadBody.trim()) return;
-                  void extras.createBoardThread(newThreadTitle.trim(), newThreadBody.trim());
-                  setNewThreadTitle("");
-                  setNewThreadBody("");
-                  setShowNewThreadForm(false);
-                }}
+                onClick={() => void handleSaveBoardThread()}
                 className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold hover:bg-indigo-700 self-start"
               >
-                Post thread
+                {isEditing ? "Save changes" : "Post message"}
               </button>
             </div>
           );
@@ -1616,7 +1833,11 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowNewThreadForm(true)}
+                  onClick={() => {
+                    setBoardThreadForm({ mode: "create" });
+                    setNewThreadTitle("");
+                    setNewThreadBody(EMPTY_RICH_TEXT_DOC);
+                  }}
                   className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md shadow-indigo-200 hover:bg-indigo-700 transition-colors flex items-center gap-2"
                 >
                   <Plus size={16} className="stroke-[3px]" /> New Message
@@ -1632,6 +1853,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
               )}
               {extras.threads.map((th) => {
                 const op = users.find((u) => u.id === th.userId);
+                const preview = extractTextPreview(th.content);
                 return (
                   <div
                     key={th.id}
@@ -1642,8 +1864,8 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                       onClick={() => setActiveBoardThreadId(th.id)}
                       className="w-full text-left"
                     >
-                      <h3 className="text-lg font-black text-slate-800 mb-2 pr-10 select-text">{th.title}</h3>
-                      <p className="text-slate-500 text-sm font-medium mb-4 line-clamp-2 select-text">{th.content}</p>
+                      <h3 className="text-lg font-black text-slate-800 mb-2 pr-24 select-text">{th.title}</h3>
+                      <p className="text-slate-500 text-sm font-medium mb-4 line-clamp-2 select-text">{preview || "No content"}</p>
                     <div className="flex items-center gap-3">
                       {op?.avatar ? (
                         <img src={op.avatar} alt="" className="w-8 h-8 rounded-full border-2 border-white object-cover" />
@@ -1657,18 +1879,44 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                       </span>
                     </div>
                     </button>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void copyBoardText(`${th.title}\n\n${th.content}`, `preview-${th.id}`);
-                      }}
-                      className={`absolute top-5 right-5 w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${boardCopyButtonClass(boardCopyFeedback === `preview-${th.id}`)}`}
-                      aria-label={boardCopyFeedback === `preview-${th.id}` ? "Copied" : "Copy message"}
-                      title={boardCopyFeedback === `preview-${th.id}` ? "Copied!" : "Copy message"}
-                    >
-                      {renderBoardCopyIcon(`preview-${th.id}`, 16)}
-                    </button>
+                    <div className="absolute top-5 right-5 flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          startEditingBoardThread(th.id);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                        aria-label="Edit message"
+                        title="Edit message"
+                      >
+                        <Pencil size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setBoardThreadToDeleteId(th.id);
+                        }}
+                        className="w-8 h-8 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                        aria-label="Delete message"
+                        title="Delete message"
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void copyBoardText(`${th.title}\n\n${richTextToPlainText(th.content)}`, `preview-${th.id}`);
+                        }}
+                        className={`w-8 h-8 flex items-center justify-center rounded-lg transition-colors ${boardCopyButtonClass(boardCopyFeedback === `preview-${th.id}`)}`}
+                        aria-label={boardCopyFeedback === `preview-${th.id}` ? "Copied" : "Copy message"}
+                        title={boardCopyFeedback === `preview-${th.id}` ? "Copied!" : "Copy message"}
+                      >
+                        {renderBoardCopyIcon(`preview-${th.id}`, 16)}
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -1936,7 +2184,7 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                     })()}
                     <div className="min-w-0">
                       <div className="text-sm font-bold text-slate-800 line-clamp-1 mb-0.5">{extras.threads[0].title}</div>
-                      <div className="text-xs font-medium text-slate-500 line-clamp-2">{extras.threads[0].content}</div>
+                      <div className="text-xs font-medium text-slate-500 line-clamp-2">{extractTextPreview(extras.threads[0].content) || "No content"}</div>
                     </div>
                   </div>
                 ) : (
@@ -2124,6 +2372,90 @@ export const ProjectDetail: React.FC<{ projectId: string | null; onBack: () => v
                 className="px-5 py-3 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-md shadow-rose-200"
               >
                 Delete Event
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {boardThreadToDelete && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-board-thread-title"
+          onClick={() => setBoardThreadToDeleteId(null)}
+        >
+          <div
+            className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-md shadow-2xl border border-rose-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6">
+              <Trash2 size={26} className="stroke-[2.5px]" />
+            </div>
+            <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-2">Delete message</p>
+            <h2 id="delete-board-thread-title" className="text-2xl font-black text-indigo-900 tracking-tight mb-3">
+              Delete &ldquo;{boardThreadToDelete.title}&rdquo;?
+            </h2>
+            <p className="text-slate-600 text-sm font-medium leading-relaxed mb-8">
+              This will permanently remove the message and all of its replies.
+            </p>
+            <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setBoardThreadToDeleteId(null)}
+                className="px-5 py-3 rounded-xl text-sm font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmDeleteBoardThread()}
+                className="px-5 py-3 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-md shadow-rose-200"
+              >
+                Delete Message
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {boardCommentToDelete && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-board-comment-title"
+          onClick={() => setBoardCommentToDelete(null)}
+        >
+          <div
+            className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-md shadow-2xl border border-rose-100 animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-14 h-14 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mb-6">
+              <Trash2 size={26} className="stroke-[2.5px]" />
+            </div>
+            <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-2">Delete reply</p>
+            <h2 id="delete-board-comment-title" className="text-2xl font-black text-indigo-900 tracking-tight mb-3">
+              Delete this reply?
+            </h2>
+            <p className="text-slate-600 text-sm font-medium leading-relaxed mb-8">
+              This reply will be permanently removed from the message thread.
+            </p>
+            <div className="flex flex-col-reverse sm:flex-row gap-3 sm:justify-end">
+              <button
+                type="button"
+                onClick={() => setBoardCommentToDelete(null)}
+                className="px-5 py-3 rounded-xl text-sm font-bold border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmDeleteBoardComment()}
+                className="px-5 py-3 rounded-xl text-sm font-bold bg-rose-500 text-white hover:bg-rose-600 transition-colors shadow-md shadow-rose-200"
+              >
+                Delete Reply
               </button>
             </div>
           </div>

@@ -117,8 +117,8 @@ export const MyTasks: React.FC<{
   return (
     <div className="space-y-8 max-w-5xl mx-auto pb-8">
       <div>
-        <h1 className="text-3xl font-black text-indigo-900 tracking-tight">My Tasks</h1>
-        <p className="text-slate-500 mt-1 font-medium">
+        <h1 className="text-3xl font-bold text-gray-900 tracking-tight">My Tasks</h1>
+        <p className="text-gray-500 mt-1 font-medium">
           {myKanbanTasks.length} board task{myKanbanTasks.length === 1 ? "" : "s"} ·{" "}
           {assignedTodoRows.length} list task{assignedTodoRows.length === 1 ? "" : "s"} assigned to you.
         </p>
@@ -129,8 +129,8 @@ export const MyTasks: React.FC<{
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-xl text-sm font-bold capitalize whitespace-nowrap transition-colors ${
-              filter === f ? "bg-indigo-600 text-white shadow-md shadow-indigo-200" : "bg-white text-slate-600 hover:bg-slate-50 border border-slate-200"
+            className={`px-4 py-2 rounded-xl text-sm font-semibold capitalize whitespace-nowrap transition-colors ${
+              filter === f ? "bg-blue-600 text-white shadow-sm" : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
             }`}
           >
             {f === "all" ? "All Tasks" : f.replace("-", " ")}
@@ -140,12 +140,12 @@ export const MyTasks: React.FC<{
 
       <div className="space-y-4">
         {filteredRows.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-slate-100 shadow-sm">
-            <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckSquare size={24} className="text-slate-300" />
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-sm">
+            <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckSquare size={24} className="text-gray-300" />
             </div>
-            <h3 className="text-lg font-bold text-slate-800 mb-1">No tasks found</h3>
-            <p className="text-slate-500">You're all caught up! Great job.</p>
+            <h3 className="text-lg font-bold text-gray-800 mb-1">No tasks found</h3>
+            <p className="text-gray-500">You're all caught up! Great job.</p>
           </div>
         ) : (
           filteredRows.map((row, index) => {
@@ -156,45 +156,45 @@ export const MyTasks: React.FC<{
                 <div
                   key={`k-${task.id}`}
                   id={`my-task-k-${task.id}`}
-                  className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
+                  className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-100 shadow-sm hover:shadow transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
                 >
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
-                      <span className="text-[10px] uppercase tracking-widest font-black text-indigo-500 bg-indigo-50 px-2 flex py-1 rounded-md">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-600 bg-blue-50 px-2 flex py-1 rounded-md">
                         {project?.name || "Unknown Project"}
                       </span>
-                      <span className="text-[10px] uppercase tracking-widest font-black text-violet-600 bg-violet-50 px-2 py-1 rounded-md">
+                      <span className="text-[10px] uppercase tracking-wider font-semibold text-violet-600 bg-violet-50 px-2 py-1 rounded-md">
                         Board
                       </span>
                       <span
-                        className={`text-[10px] uppercase flex tracking-widest font-black px-2 py-1 rounded-md ${
+                        className={`text-[10px] uppercase flex tracking-wider font-semibold px-2 py-1 rounded-md ${
                           task.priority === "urgent"
                             ? "bg-rose-50 text-rose-600"
                             : task.priority === "high"
                               ? "bg-amber-50 text-amber-600"
-                              : "bg-slate-50 text-slate-500"
+                              : "bg-gray-50 text-gray-500"
                         }`}
                       >
                         {task.priority}
                       </span>
                     </div>
-                    <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-1 leading-snug">{task.title}</h3>
-                    <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-400">
+                    <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1 leading-snug">{task.title}</h3>
+                    <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-400">
                       <span className="flex items-center gap-1.5">
                         <Clock size={14} className="stroke-[3px]" /> {format(new Date(task.dueDate), "MMM d")}
                       </span>
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-slate-100">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-gray-100">
                     <div
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize ${statusBadgeClass(task.status)}`}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${statusBadgeClass(task.status)}`}
                     >
                       {task.status.replace("-", " ")}
                     </div>
                     <button
                       onClick={() => void handleDeleteRow(row)}
-                      className="h-8 w-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors bg-white shrink-0"
+                      className="h-8 w-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors bg-white shrink-0"
                       aria-label={`Delete task ${task.title}`}
                       title="Delete task"
                     >
@@ -212,19 +212,19 @@ export const MyTasks: React.FC<{
               <div
                 key={`t-${projectId}-${item.id}-${index}`}
                 id={`my-task-t-${projectId}-${item.id}`}
-                className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-100 shadow-sm hover:shadow-md transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
+                className="bg-white rounded-2xl p-5 sm:p-6 border border-gray-100 shadow-sm hover:shadow transition-shadow flex flex-col sm:flex-row gap-4 sm:items-center"
               >
                 <div className="flex-1">
                   <div className="flex items-center gap-3 mb-2">
-                    <span className="text-[10px] uppercase tracking-widest font-black text-indigo-500 bg-indigo-50 px-2 flex py-1 rounded-md">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-blue-600 bg-blue-50 px-2 flex py-1 rounded-md">
                       {project?.name || "Unknown Project"}
                     </span>
-                    <span className="text-[10px] uppercase tracking-widest font-black text-sky-700 bg-sky-50 px-2 py-1 rounded-md">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold text-sky-700 bg-sky-50 px-2 py-1 rounded-md">
                       List
                     </span>
                   </div>
-                  <h3 className="text-base sm:text-lg font-bold text-slate-800 mb-1 leading-snug">{item.title}</h3>
-                  <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-400">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-800 mb-1 leading-snug">{item.title}</h3>
+                  <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-gray-400">
                     <span className="flex items-center gap-1.5">
                       <Clock size={14} className="stroke-[3px]" />
                       {item.dueDate ? format(new Date(item.dueDate), "MMM d") : "No due date"}
@@ -232,15 +232,15 @@ export const MyTasks: React.FC<{
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-slate-100">
+                <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto mt-2 sm:mt-0 pt-4 sm:pt-0 border-t sm:border-0 border-gray-100">
                   <div
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize ${statusBadgeClass(status)}`}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize ${statusBadgeClass(status)}`}
                   >
                     {status.replace("-", " ")}
                   </div>
                   <button
                     onClick={() => void handleDeleteRow(row)}
-                    className="h-8 w-8 rounded-full border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors bg-white shrink-0"
+                    className="h-8 w-8 rounded-full border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors bg-white shrink-0"
                     aria-label={`Delete task ${item.title}`}
                     title="Delete task"
                   >

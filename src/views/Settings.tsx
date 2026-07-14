@@ -85,8 +85,8 @@ export const Settings: React.FC = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-black text-indigo-900 tracking-tight">Settings</h1>
-          <p className="text-slate-500 mt-1 font-medium">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Settings</h1>
+          <p className="text-gray-500 mt-1 font-medium">
             Manage how your profile appears across Nexus.
           </p>
         </div>
@@ -94,28 +94,28 @@ export const Settings: React.FC = () => {
 
       <form
         onSubmit={handleSubmit}
-        className="bg-white rounded-[2.5rem] border border-indigo-50 shadow-xl shadow-indigo-100/50 overflow-hidden"
+        className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
       >
-        <div className="p-8 border-b border-indigo-50 flex items-center gap-5">
+        <div className="p-8 border-b border-gray-100 flex items-center gap-5">
           {currentUser.avatar ? (
             <img
               src={currentUser.avatar}
               alt={currentUser.name}
-              className="w-16 h-16 rounded-full border-2 border-white shadow-md object-cover"
+              className="w-16 h-16 rounded-full border-2 border-white shadow-sm object-cover"
             />
           ) : (
             <div
-              className="w-16 h-16 rounded-full border-2 border-white shadow-md bg-indigo-200 text-indigo-900 font-black text-xl flex items-center justify-center"
+              className="w-16 h-16 rounded-full border-2 border-white shadow-sm bg-blue-100 text-blue-700 font-bold text-xl flex items-center justify-center"
               aria-hidden
             >
               {initialChar}
             </div>
           )}
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-indigo-900 truncate">
+            <h2 className="text-lg font-bold text-gray-900 truncate">
               {currentUser.name || "Your profile"}
             </h2>
-            <p className="text-sm text-slate-500 truncate">
+            <p className="text-sm text-gray-500 truncate">
               {currentUser.title?.trim() || currentUser.role || "Member"}
             </p>
           </div>
@@ -135,7 +135,7 @@ export const Settings: React.FC = () => {
                 onChange={handleChange("name")}
                 placeholder="e.g. Shawn Campo"
                 autoComplete="name"
-                className="w-full bg-indigo-50/50 border-none rounded-2xl px-4 py-3 text-sm font-medium placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-shadow"
                 aria-invalid={Boolean(nameError)}
                 aria-required="true"
               />
@@ -146,7 +146,7 @@ export const Settings: React.FC = () => {
               required
               icon={<Mail size={16} />}
               hint="Synced from your Google account"
-              trailing={<Lock size={14} className="text-slate-400" aria-hidden />}
+              trailing={<Lock size={14} className="text-gray-400" aria-hidden />}
               error={emailError}
             >
               <input
@@ -156,7 +156,7 @@ export const Settings: React.FC = () => {
                 disabled
                 aria-readonly="true"
                 aria-required="true"
-                className="w-full bg-slate-100 text-slate-600 border-none rounded-2xl px-4 py-3 text-sm font-medium cursor-not-allowed select-text"
+                className="w-full bg-gray-100 text-gray-600 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium cursor-not-allowed select-text"
               />
             </Field>
 
@@ -166,7 +166,7 @@ export const Settings: React.FC = () => {
                 value={form.title}
                 onChange={handleChange("title")}
                 placeholder="e.g. Product Designer"
-                className="w-full bg-indigo-50/50 border-none rounded-2xl px-4 py-3 text-sm font-medium placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-shadow"
               />
             </Field>
 
@@ -177,7 +177,7 @@ export const Settings: React.FC = () => {
                 onChange={handleChange("location")}
                 placeholder="e.g. Manila, Philippines"
                 autoComplete="address-level2"
-                className="w-full bg-indigo-50/50 border-none rounded-2xl px-4 py-3 text-sm font-medium placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow"
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-shadow"
               />
             </Field>
           </div>
@@ -193,7 +193,7 @@ export const Settings: React.FC = () => {
               rows={4}
               maxLength={BIO_MAX}
               placeholder="A few words about you..."
-              className="w-full bg-indigo-50/50 border-none rounded-2xl px-4 py-3 text-sm font-medium placeholder-indigo-300 focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-shadow resize-none"
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-300 transition-shadow resize-none"
             />
           </Field>
 
@@ -204,8 +204,8 @@ export const Settings: React.FC = () => {
           )}
         </div>
 
-        <div className="px-8 py-5 bg-indigo-50/40 border-t border-indigo-50 flex items-center justify-between gap-4">
-          <div className="text-sm font-medium text-slate-500 flex items-center gap-2 min-h-[20px]">
+        <div className="px-8 py-5 bg-gray-50 border-t border-gray-100 flex items-center justify-between gap-4">
+          <div className="text-sm font-medium text-gray-500 flex items-center gap-2 min-h-[20px]">
             {savedAt && !isDirty ? (
               <>
                 <CheckCircle2 size={16} className="text-emerald-500" />
@@ -220,14 +220,14 @@ export const Settings: React.FC = () => {
               type="button"
               onClick={handleReset}
               disabled={!isDirty || saving}
-              className="px-4 py-2.5 rounded-full text-sm font-bold text-slate-600 hover:bg-indigo-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-100 disabled:opacity-50 disabled:hover:bg-transparent transition-colors"
             >
               Reset
             </button>
             <button
               type="submit"
               disabled={!canSubmit}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold bg-indigo-600 text-white shadow-md shadow-indigo-300/40 hover:bg-indigo-700 disabled:bg-indigo-300 disabled:shadow-none disabled:cursor-not-allowed transition-colors"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold bg-blue-600 text-white shadow-sm hover:bg-blue-700 disabled:bg-blue-300 disabled:shadow-none disabled:cursor-not-allowed transition-colors"
             >
               <Save size={16} />
               {saving ? "Saving..." : "Save changes"}
@@ -253,12 +253,12 @@ const Field: React.FC<FieldProps> = ({ label, icon, required, hint, trailing, er
   return (
     <label className="block">
       <div className="flex items-center justify-between mb-2">
-        <span className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-wider text-indigo-900">
-          {icon && <span className="text-indigo-400">{icon}</span>}
+        <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-700">
+          {icon && <span className="text-gray-400">{icon}</span>}
           {label}
           {required && <span className="text-rose-500">*</span>}
         </span>
-        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+        <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-gray-400">
           {hint}
           {trailing}
         </span>

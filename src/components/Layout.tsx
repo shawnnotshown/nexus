@@ -198,12 +198,12 @@ function LayoutContent() {
               setChatPopupMessage(null);
               setLastSeenChatAt(toTimestamp(chatPopupMessage.createdAt));
             }}
-            className="fixed bottom-5 right-5 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-indigo-100 bg-white p-4 text-left shadow-lg shadow-indigo-200/40 transition hover:shadow-xl"
+            className="fixed bottom-5 right-5 z-40 w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm transition hover:shadow"
           >
-            <p className="text-[11px] font-black uppercase tracking-wide text-rose-500">New Team Chat Message</p>
-            <p className="mt-1 text-sm font-bold text-slate-800 truncate">{popupAuthor?.name ?? "Teammate"}</p>
-            <p className="mt-1 text-sm text-slate-600 line-clamp-2">{chatPopupMessage.content}</p>
-            <p className="mt-2 text-xs font-semibold text-indigo-600">Open chat</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-rose-500">New Team Chat Message</p>
+            <p className="mt-1 text-sm font-bold text-gray-800 truncate">{popupAuthor?.name ?? "Teammate"}</p>
+            <p className="mt-1 text-sm text-gray-600 line-clamp-2">{chatPopupMessage.content}</p>
+            <p className="mt-2 text-xs font-semibold text-blue-600">Open chat</p>
           </button>
         )}
     </div>
@@ -224,7 +224,7 @@ function LayoutGate() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-indigo-50 text-indigo-900 font-bold">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-900 font-semibold">
         Loading…
       </div>
     );
@@ -236,7 +236,7 @@ function LayoutGate() {
 
   if (!ready) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-indigo-50 text-indigo-900 font-bold">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 text-gray-900 font-semibold">
         Preparing workspace…
       </div>
     );
@@ -244,10 +244,10 @@ function LayoutGate() {
 
   if (error || !workspaceId) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-indigo-50 p-6 text-center gap-4">
-        <p className="text-rose-600 font-bold max-w-md">{error ?? "No workspace available."}</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 p-6 text-center gap-4">
+        <p className="text-rose-600 font-semibold max-w-md">{error ?? "No workspace available."}</p>
         {configError && (
-          <p className="text-slate-600 text-sm max-w-md">
+          <p className="text-gray-600 text-sm max-w-md">
             Add your Firebase web config to <code className="font-mono">.env.local</code> and restart the dev server.
           </p>
         )}

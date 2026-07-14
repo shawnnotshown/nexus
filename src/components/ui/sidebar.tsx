@@ -126,7 +126,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
       <button
         type="button"
         onClick={() => setIsMobileMenuOpen((open) => !open)}
-        className="fixed left-3 top-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm md:hidden"
+        className="fixed left-3 top-3 z-50 inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm md:hidden"
         aria-label={isMobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
       >
         {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -143,7 +143,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
 
       <motion.div
         className={cn(
-          "sidebar h-full shrink-0 self-stretch overflow-hidden border-r border-slate-200 bg-white text-slate-600",
+          "sidebar h-full shrink-0 self-stretch overflow-hidden border-r border-gray-200 bg-white text-gray-600",
           isMobile
             ? "fixed inset-y-0 left-0 z-50 w-60 shadow-xl md:hidden"
             : "hidden md:block",
@@ -169,7 +169,7 @@ export function SessionNavBar({ currentView, setCurrentView, hasUnreadChat = fal
       >
         <motion.div variants={staggerVariants} className="flex h-full flex-col">
           <div className="flex grow flex-col items-center">
-            <div className="flex h-[54px] w-full shrink-0 border-b border-slate-200 p-2">
+            <div className="flex h-[54px] w-full shrink-0 border-b border-gray-200 p-2">
               <div className="mt-[1.5px] flex w-full">
                 <DropdownMenu modal={false}>
                   <DropdownMenuTrigger className="w-full" asChild>

@@ -84,7 +84,7 @@ function DeleteNoteConfirmModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <button
         type="button"
-        className="absolute inset-0 bg-slate-900/40"
+        className="absolute inset-0 bg-gray-900/40"
         aria-label="Close delete confirmation"
         onClick={() => {
           if (!deleting) onCancel();
@@ -94,9 +94,9 @@ function DeleteNoteConfirmModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-note-title"
-        className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl"
+        className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl"
       >
-        <h2 id="delete-note-title" className="text-lg font-bold text-slate-900">
+        <h2 id="delete-note-title" className="text-lg font-bold text-gray-900">
           Delete note?
         </h2>
         <p className="mt-2 text-sm text-slate-600">
@@ -108,7 +108,7 @@ function DeleteNoteConfirmModal({
             type="button"
             disabled={deleting}
             onClick={onCancel}
-            className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
+            className="rounded-lg border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:opacity-60"
           >
             Cancel
           </button>
@@ -146,7 +146,7 @@ function ToolbarButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40",
+        "inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-600 transition hover:bg-slate-100 hover:text-gray-900 disabled:opacity-40",
         active && "bg-blue-50 text-blue-600"
       )}
     >
@@ -241,7 +241,7 @@ function NoteEditor({
 
   if (!editor) {
     return (
-      <div className="flex flex-1 items-center justify-center text-sm text-slate-500">
+      <div className="flex flex-1 items-center justify-center text-sm text-gray-500">
         Loading editor…
       </div>
     );
@@ -249,20 +249,20 @@ function NoteEditor({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
         <input
           type="text"
           value={title}
           onChange={(e) => handleTitleChange(e.target.value)}
           placeholder="Note title"
-          className="min-w-0 flex-1 bg-transparent text-xl font-bold text-slate-900 outline-none placeholder:text-slate-400"
+          className="min-w-0 flex-1 bg-transparent text-xl font-bold text-gray-900 outline-none placeholder:text-gray-400"
         />
-        <span className="ml-4 shrink-0 text-xs font-medium text-slate-400">
+        <span className="ml-4 shrink-0 text-xs font-medium text-gray-400">
           {saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
         </span>
       </div>
 
-      <div className="flex flex-wrap items-center gap-0.5 border-b border-slate-200 px-2 py-1.5">
+      <div className="flex flex-wrap items-center gap-0.5 border-b border-gray-200 px-2 py-1.5">
         <ToolbarButton
           title="Bold"
           active={editor.isActive("bold")}
@@ -473,38 +473,38 @@ export const Notes: React.FC = () => {
     <div className="flex h-[calc(100vh-4rem)] flex-col gap-4 md:h-[calc(100vh-5rem)]">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-slate-900">Notes</h1>
-          <p className="text-sm text-slate-500">Personal notes — only visible to you.</p>
+          <h1 className="text-2xl font-bold text-gray-900">Notes</h1>
+          <p className="text-sm text-gray-500">Personal notes — only visible to you.</p>
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <aside className="flex w-full max-w-xs shrink-0 flex-col border-r border-slate-200 md:max-w-sm">
-          <div className="space-y-3 border-b border-slate-200 p-3">
+      <div className="flex min-h-0 flex-1 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm">
+        <aside className="flex w-full max-w-xs shrink-0 flex-col border-r border-gray-200 md:max-w-sm">
+          <div className="space-y-3 border-b border-gray-200 p-3">
             <button
               type="button"
               onClick={() => void handleCreateNote()}
               disabled={creating}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
             >
               <Plus className="h-4 w-4" />
               {creating ? "Creating…" : "New Note"}
             </button>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
               <input
                 type="search"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search notes…"
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm text-slate-900 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-2 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
               />
             </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-auto p-2">
             {loading ? (
-              <p className="px-2 py-4 text-center text-sm text-slate-500">Loading notes…</p>
+              <p className="px-2 py-4 text-center text-sm text-gray-500">Loading notes…</p>
             ) : filteredNotes.length === 0 ? (
               <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
                 <NotebookPen className="h-8 w-8 text-slate-300" />
@@ -532,7 +532,7 @@ export const Notes: React.FC = () => {
                           "group flex items-start gap-1 rounded-lg border transition",
                           isSelected
                             ? "border-blue-200 bg-blue-50"
-                            : "border-transparent hover:border-slate-200 hover:bg-slate-50"
+                            : "border-transparent hover:border-gray-200 hover:bg-gray-50"
                         )}
                       >
                         <button
@@ -540,13 +540,13 @@ export const Notes: React.FC = () => {
                           onClick={() => setSelectedNoteId(note.id)}
                           className="min-w-0 flex-1 px-3 py-2.5 text-left"
                         >
-                          <p className="truncate text-sm font-semibold text-slate-900">
+                          <p className="truncate text-sm font-semibold text-gray-900">
                             {note.title.trim() || "Untitled"}
                           </p>
-                          <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                          <p className="mt-0.5 line-clamp-2 text-xs text-gray-500">
                             {extractTextPreview(note.content)}
                           </p>
-                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                          <p className="mt-1 text-[10px] font-medium uppercase tracking-wide text-gray-400">
                             {formatDistanceToNow(new Date(note.updatedAt), { addSuffix: true })}
                           </p>
                         </button>
@@ -554,7 +554,7 @@ export const Notes: React.FC = () => {
                           type="button"
                           title="Delete note"
                           onClick={() => setNoteToDelete(note)}
-                          className="mr-1 mt-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-slate-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
+                          className="mr-1 mt-2 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -573,8 +573,8 @@ export const Notes: React.FC = () => {
           ) : (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
               <NotebookPen className="h-12 w-12 text-slate-300" />
-              <p className="text-lg font-semibold text-slate-700">Select a note to edit</p>
-              <p className="max-w-sm text-sm text-slate-500">
+              <p className="text-lg font-semibold text-gray-700">Select a note to edit</p>
+              <p className="max-w-sm text-sm text-gray-500">
                 Choose a note from the list or create a new one to start writing.
               </p>
               <button
@@ -590,7 +590,7 @@ export const Notes: React.FC = () => {
       </div>
 
       {selectedNote && (
-        <div className="flex min-h-[50vh] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm md:hidden">
+        <div className="flex min-h-[50vh] flex-col rounded-2xl border border-gray-200 bg-white shadow-sm md:hidden">
           <NoteEditor key={selectedNote.id} note={selectedNote} onSave={handleSave} />
         </div>
       )}

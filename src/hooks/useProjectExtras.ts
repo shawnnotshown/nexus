@@ -328,7 +328,7 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
       if (!db || !workspaceId || !projectId || !user) return;
       await addDoc(collection(db, "workspaces", workspaceId, "projects", projectId, "boardThreads"), {
         title: title.trim(),
-        content: content.trim(),
+        content,
         userId: user.uid,
         commentCount: 0,
         createdAt: serverTimestamp(),
@@ -352,6 +352,57 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
       await batch.commit();
     },
     [db, workspaceId, projectId, user]
+  );
+
+  const updateBoardThread = useCallback(
+    async (threadId: string, updates: { title?: string; content?: string }) => {
+      if (!db || !workspaceId || !projectId) return;
+      const payload: Record<string, unknown> = {};
+      if ("title" in updates && updates.title !== undefined) payload.title = updates.title.trim();
+      if ("content" in updates && updates.content !== undefined) payload.content = updates.content;
+      if (Object.keys(payload).length === 0) return;
+      await updateDoc(
+        doc(db, "workspaces", workspaceId, "projects", projectId, "boardThreads", threadId),
+        payload as DocumentData
+      );
+    },
+    [db, workspaceId, projectId]
+  );
+
+  const deleteBoardThread = useCallback(
+    async (threadId: string) => {
+      if (!db || !workspaceId || !projectId) return;
+      const threadRef = doc(db, "workspaces", workspaceId, "projects", projectId, "boardThreads", threadId);
+      const commentsSnap = await getDocs(collection(threadRef, "comments"));
+      const batch = writeBatch(db);
+      commentsSnap.forEach((commentDoc) => batch.delete(commentDoc.ref));
+      batch.delete(threadRef);
+      await batch.commit();
+    },
+    [db, workspaceId, projectId]
+  );
+
+  const updateBoardThreadComment = useCallback(
+    async (threadId: string, commentId: string, content: string) => {
+      if (!db || !workspaceId || !projectId) return;
+      await updateDoc(
+        doc(db, "workspaces", workspaceId, "projects", projectId, "boardThreads", threadId, "comments", commentId),
+        { content: content.trim() }
+      );
+    },
+    [db, workspaceId, projectId]
+  );
+
+  const deleteBoardThreadComment = useCallback(
+    async (threadId: string, commentId: string) => {
+      if (!db || !workspaceId || !projectId) return;
+      const threadRef = doc(db, "workspaces", workspaceId, "projects", projectId, "boardThreads", threadId);
+      const batch = writeBatch(db);
+      batch.delete(doc(collection(threadRef, "comments"), commentId));
+      batch.update(threadRef, { commentCount: increment(-1) });
+      await batch.commit();
+    },
+    [db, workspaceId, projectId]
   );
 
   const uploadFiles = useCallback(
@@ -489,7 +540,11 @@ export function useProjectExtras(projectId: string | null, activeThreadId: strin
     deleteTodoList,
     addTodoItemComment,
     createBoardThread,
+    updateBoardThread,
+    deleteBoardThread,
     addBoardThreadComment,
+    updateBoardThreadComment,
+    deleteBoardThreadComment,
     uploadFiles,
     deleteProjectFile,
     createScheduleEvent,

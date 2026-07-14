@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { useAppContext } from "../context/AppContext";
-import { Send, Hash, Search, MessageCircle, Plus, ChevronDown, ChevronRight, X } from "lucide-react";
+import { Send, Hash, Search, Plus, ChevronDown, ChevronRight, X } from "lucide-react";
 import { format, formatDistanceToNowStrict } from "date-fns";
 import { cn } from "../lib/utils";
 import { directMessageChannelId } from "../lib/chatChannels";
@@ -43,11 +43,14 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
 
   const [activeChannelId, setActiveChannelId] = useState<string>("");
   const [inputVal, setInputVal] = useState("");
-  const [collapsedProjects, setCollapsedProjects] = useState<Record<string, boolean>>({});
+  // Stores an explicit expand/collapse override per project (true = expanded).
+  // When absent, a project defaults to expanded only if it's the active one.
+  const [projectExpandOverride, setProjectExpandOverride] = useState<Record<string, boolean>>({});
   const [addingSubForProject, setAddingSubForProject] = useState<string | null>(null);
   const [subChannelName, setSubChannelName] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showAllDms, setShowAllDms] = useState(false);
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const typingStopTimerRef = useRef<number | null>(null);
   const typingChannelRef = useRef<string>("");
@@ -65,6 +68,17 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     setActiveChannelId(preferredChannelId);
   }, [preferredChannelId, activeChannelId]);
 
+  // When the active project changes, drop manual expand overrides so the
+  // sidebar stays compact (only the active project auto-expands).
+  const activeProjectIdForSidebar = useMemo(() => {
+    if (!activeChannelId || activeChannelId.startsWith("dm:")) return null;
+    return projectChannels.find((c) => c.id === activeChannelId)?.projectId ?? null;
+  }, [activeChannelId, projectChannels]);
+
+  useEffect(() => {
+    setProjectExpandOverride({});
+  }, [activeProjectIdForSidebar]);
+
   const projectPeerIds = useMemo(() => {
     const ids = new Set<string>();
     for (const p of projects) {
@@ -79,6 +93,14 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     () => users.filter((u) => projectPeerIds.has(u.id)),
     [users, projectPeerIds]
   );
+
+  const dmChannelsWithHistory = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of messages) {
+      if (m.channelId.startsWith("dm:")) set.add(m.channelId);
+    }
+    return set;
+  }, [messages]);
 
   const sortedDmPeers = useMemo(() => {
     const latestByChannel = new Map<string, number>();
@@ -98,6 +120,18 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
       return a.name.localeCompare(b.name);
     });
   }, [dmPeers, messages, currentUser.id]);
+
+  // Peers with an existing conversation (plus the one currently open), so the
+  // DM list stays short by default instead of listing every teammate.
+  const messagedDmPeers = useMemo(() => {
+    return sortedDmPeers.filter((u) => {
+      const dmId = directMessageChannelId(currentUser.id, u.id);
+      return dmChannelsWithHistory.has(dmId) || dmId === activeChannelId;
+    });
+  }, [sortedDmPeers, dmChannelsWithHistory, currentUser.id, activeChannelId]);
+
+  const visibleDmPeers = showAllDms ? sortedDmPeers : messagedDmPeers;
+  const hiddenDmCount = sortedDmPeers.length - messagedDmPeers.length;
 
   const channelsByProject = useMemo(() => {
     const map = new Map<string, ProjectChannel[]>();
@@ -142,11 +176,12 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
       : "Select a conversation";
   const inputPlaceholder = isDm && dmPeer ? `Message ${dmPeer.name}…` : "Type your message…";
   const isUserOnline = (lastSeenAt?: string, isOnline?: boolean): boolean => {
-    if (typeof isOnline === "boolean") return isOnline;
-    if (!lastSeenAt) return false;
-    const lastSeenMs = new Date(lastSeenAt).getTime();
-    if (Number.isNaN(lastSeenMs)) return false;
-    return Date.now() - lastSeenMs <= 5 * 60 * 1000;
+    // Require a fresh lastSeenAt; stale isOnline:true (e.g. after crash) must not win.
+    const ONLINE_THRESHOLD_MS = 5 * 60 * 1000;
+    const lastSeenMs = lastSeenAt ? new Date(lastSeenAt).getTime() : NaN;
+    const ageMs = Number.isNaN(lastSeenMs) ? null : Date.now() - lastSeenMs;
+    const isFresh = ageMs != null && ageMs <= ONLINE_THRESHOLD_MS;
+    return isOnline === false ? false : isFresh;
   };
   const headerStatusLabel = useMemo(() => {
     if (!isDm || !dmPeer) return "";
@@ -244,8 +279,8 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
     };
   }, [setTyping]);
 
-  const toggleProjectCollapsed = (projectId: string) => {
-    setCollapsedProjects((prev) => ({ ...prev, [projectId]: !prev[projectId] }));
+  const toggleProjectExpanded = (projectId: string, currentlyExpanded: boolean) => {
+    setProjectExpandOverride((prev) => ({ ...prev, [projectId]: !currentlyExpanded }));
   };
 
   const handleCreateSubChannel = async (projectId: string) => {
@@ -264,55 +299,76 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
         type="button"
         onClick={() => setActiveChannelId(ch.id)}
         className={cn(
-          "w-full flex items-center gap-2 px-3 py-2 rounded-lg font-medium text-left cursor-pointer transition-colors",
-          isActive ? "bg-indigo-100 text-indigo-700" : "hover:bg-slate-200 text-slate-600"
+          "w-full flex items-center gap-2 px-2 py-1.5 text-left cursor-pointer text-sm transition-colors",
+          isActive
+            ? "text-gray-900 font-medium"
+            : "text-gray-500 hover:text-gray-900"
         )}
       >
-        <Hash size={16} className="shrink-0" />
-        <span className="truncate text-sm">{ch.isDefault ? "general" : ch.name}</span>
+        <Hash size={15} className={cn("shrink-0", isActive ? "text-gray-900" : "text-gray-400")} />
+        <span className="truncate">{ch.isDefault ? "general" : ch.name}</span>
       </button>
     );
   };
 
   return (
     <div className="flex h-full bg-white overflow-hidden">
-      {/* Sidebar Channels */}
-      <div className="w-72 border-r border-indigo-50 bg-indigo-50/30 flex flex-col h-full hidden md:flex">
-        <div className="p-6 border-b border-indigo-50">
-          <h2 className="font-black text-indigo-900 text-lg">Team Chat</h2>
-          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">
-            Project channels
-          </p>
+      {/* Sidebar */}
+      <div className="w-64 border-r border-gray-100 bg-white flex-col h-full hidden md:flex">
+        <div className="px-5 h-14 flex items-center border-b border-gray-100">
+          <h2 className="font-semibold text-gray-900">Messages</h2>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
           {projects.length === 0 ? (
-            <p className="px-2 text-sm text-slate-500">Join or create a project to start chatting.</p>
+            <p className="px-2 text-sm text-gray-400">Join or create a project to start chatting.</p>
           ) : (
             projects.map((project) => {
               const channels = channelsByProject.get(project.id) ?? [];
-              const collapsed = collapsedProjects[project.id] ?? false;
+              const isActiveProject =
+                !isDm && !!activeChannel && activeChannel.projectId === project.id;
+              const expanded =
+                projectExpandOverride[project.id] ?? isActiveProject;
               const isAddingSub = addingSubForProject === project.id;
 
               return (
-                <div key={project.id} className="mb-2">
-                  <button
-                    type="button"
-                    onClick={() => toggleProjectCollapsed(project.id)}
-                    className="w-full flex items-center gap-1 px-2 py-1.5 text-left text-xs font-black text-slate-500 uppercase tracking-wider hover:text-indigo-700"
-                  >
-                    {collapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
-                    <span className="truncate">{project.name}</span>
-                  </button>
-                  {!collapsed && (
-                    <div className="space-y-0.5 pl-1">
+                <div key={project.id}>
+                  <div className="flex items-center justify-between group">
+                    <button
+                      type="button"
+                      onClick={() => toggleProjectExpanded(project.id, expanded)}
+                      className="flex-1 flex items-center gap-1 px-2 py-1 text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-600"
+                    >
+                      {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                      <span className="truncate">{project.name}</span>
+                      {!expanded && channels.length > 0 && (
+                        <span className="ml-auto text-[10px] font-normal text-gray-300 normal-case tracking-normal">
+                          {channels.length}
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjectExpandOverride((prev) => ({ ...prev, [project.id]: true }));
+                        setAddingSubForProject(project.id);
+                      }}
+                      className="p-1 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                      aria-label="Add subchannel"
+                      title="Add subchannel"
+                    >
+                      <Plus size={14} />
+                    </button>
+                  </div>
+                  {expanded && (
+                    <div className="mt-1 space-y-0.5">
                       {channels.length === 0 ? (
-                        <p className="px-3 py-1 text-xs text-slate-400">No channels yet</p>
+                        <p className="px-2 py-1 text-xs text-gray-300">No channels yet</p>
                       ) : (
                         channels.map(renderChannelButton)
                       )}
-                      {isAddingSub ? (
+                      {isAddingSub && (
                         <form
-                          className="px-2 py-1 flex gap-1"
+                          className="px-2 py-1 flex gap-2 items-center"
                           onSubmit={(e) => {
                             e.preventDefault();
                             void handleCreateSubChannel(project.id);
@@ -322,14 +378,14 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                             type="text"
                             value={subChannelName}
                             onChange={(e) => setSubChannelName(e.target.value)}
-                            placeholder="Subchannel name"
-                            className="flex-1 min-w-0 rounded-lg border border-indigo-100 px-2 py-1 text-xs"
+                            placeholder="new-channel"
+                            className="flex-1 min-w-0 border-b border-gray-200 bg-transparent px-1 py-0.5 text-xs outline-none focus:border-gray-900"
                             autoFocus
                           />
                           <button
                             type="submit"
                             disabled={!subChannelName.trim()}
-                            className="text-xs font-bold text-indigo-600 disabled:opacity-40"
+                            className="text-xs font-medium text-gray-900 disabled:opacity-30"
                           >
                             Add
                           </button>
@@ -339,20 +395,11 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                               setAddingSubForProject(null);
                               setSubChannelName("");
                             }}
-                            className="text-xs text-slate-400"
+                            className="text-xs text-gray-400"
                           >
                             Cancel
                           </button>
                         </form>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setAddingSubForProject(project.id)}
-                          className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-indigo-600 hover:bg-indigo-50"
-                        >
-                          <Plus size={14} />
-                          Add subchannel
-                        </button>
                       )}
                     </div>
                   )}
@@ -361,60 +408,82 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             })
           )}
 
-          <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 px-2 mt-6">
-            Direct Messages
-          </div>
-          {dmPeers.length === 0 ? (
-            <p className="px-2 text-sm text-slate-500">No teammates on your projects yet.</p>
-          ) : (
-            sortedDmPeers.map((u) => {
-              const dmId = directMessageChannelId(currentUser.id, u.id);
-              const isActive = activeChannelId === dmId;
-              const online = isUserOnline(u.lastSeenAt, u.isOnline);
-              return (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => setActiveChannelId(dmId)}
-                  className={cn(
-                    "w-full flex items-center gap-2 justify-between px-3 py-2 rounded-lg font-medium group text-left cursor-pointer transition-colors",
-                    isActive ? "bg-indigo-100 text-indigo-700" : "hover:bg-slate-200 text-slate-600"
-                  )}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <div className="relative shrink-0">
-                      <img
-                        src={u.avatar}
-                        className="w-6 h-6 rounded border border-slate-300 object-cover"
-                        alt={u.name}
-                      />
-                      <span
-                        className={cn(
-                          "absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 border-white rounded-full",
-                          online ? "bg-green-500" : "bg-slate-400"
-                        )}
-                        title={online ? "Online" : "Offline"}
-                      />
-                    </div>
-                    <span
+          <div>
+            <div className="px-2 py-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+              Direct Messages
+            </div>
+            {dmPeers.length === 0 ? (
+              <p className="px-2 py-1 text-xs text-gray-300">No teammates yet.</p>
+            ) : visibleDmPeers.length === 0 && !showAllDms ? (
+              <div className="mt-1 space-y-1">
+                <p className="px-2 py-1 text-xs text-gray-400">No conversations yet.</p>
+                {sortedDmPeers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllDms(true)}
+                    className="px-2 py-1 text-xs text-gray-500 hover:text-gray-900"
+                  >
+                    Show all teammates ({sortedDmPeers.length})
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="mt-1 space-y-0.5">
+                {visibleDmPeers.map((u) => {
+                  const dmId = directMessageChannelId(currentUser.id, u.id);
+                  const isActive = activeChannelId === dmId;
+                  const online = isUserOnline(u.lastSeenAt, u.isOnline);
+                  return (
+                    <button
+                      key={u.id}
+                      type="button"
+                      onClick={() => setActiveChannelId(dmId)}
                       className={cn(
-                        "text-sm truncate",
-                        isActive ? "text-indigo-800" : "group-hover:text-slate-900"
+                        "w-full flex items-center gap-2 px-2 py-1.5 text-left cursor-pointer text-sm transition-colors",
+                        isActive ? "text-gray-900 font-medium" : "text-gray-500 hover:text-gray-900"
                       )}
                     >
-                      {u.name}
-                    </span>
-                  </div>
-                </button>
-              );
-            })
-          )}
+                      <span className="relative shrink-0">
+                        <img src={u.avatar} className="w-5 h-5 rounded-full object-cover" alt={u.name} />
+                        <span
+                          className={cn(
+                            "absolute -bottom-0.5 -right-0.5 w-2 h-2 border border-white rounded-full",
+                            online ? "bg-green-500" : "bg-gray-300"
+                          )}
+                          title={online ? "Online" : "Offline"}
+                        />
+                      </span>
+                      <span className="truncate">{u.name}</span>
+                    </button>
+                  );
+                })}
+                {!showAllDms && hiddenDmCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllDms(true)}
+                    className="w-full px-2 py-1.5 text-left text-xs text-gray-400 hover:text-gray-900"
+                  >
+                    Show all teammates ({hiddenDmCount} more)
+                  </button>
+                )}
+                {showAllDms && hiddenDmCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllDms(false)}
+                    className="w-full px-2 py-1.5 text-left text-xs text-gray-400 hover:text-gray-900"
+                  >
+                    Show less
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
-        <div className="md:hidden px-3 py-2 border-b border-indigo-100 bg-indigo-50/40">
+        <div className="md:hidden px-3 py-2 border-b border-gray-100">
           <label htmlFor="chat-conversation" className="sr-only">
             Conversation
           </label>
@@ -422,7 +491,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             id="chat-conversation"
             value={activeChannelId}
             onChange={(e) => setActiveChannelId(e.target.value)}
-            className="w-full rounded-xl border border-indigo-100 bg-white px-3 py-2.5 text-sm font-semibold text-slate-800 shadow-sm outline-none focus:ring-2 focus:ring-indigo-200"
+            className="w-full border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 rounded-lg outline-none focus:border-gray-900"
           >
             {projects.map((project) => {
               const channels = channelsByProject.get(project.id) ?? [];
@@ -448,34 +517,22 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
             )}
           </select>
         </div>
-        <div className="p-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-white shadow-sm z-10">
+
+        <div className="h-14 px-5 border-b border-gray-100 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
-            {isDm ? (
-              <MessageCircle size={20} className="text-slate-400 shrink-0" />
-            ) : (
-              <Hash size={20} className="text-slate-400 shrink-0" />
+            <span className="text-gray-300 shrink-0">{isDm ? "@" : "#"}</span>
+            <h2 className="font-semibold text-gray-900 truncate">{headerTitle}</h2>
+            {headerStatusLabel && (
+              <span className="flex items-center gap-1.5 text-xs text-gray-400 shrink-0">
+                <span
+                  className={cn(
+                    "inline-block h-1.5 w-1.5 rounded-full",
+                    headerStatusLabel === "Online" ? "bg-green-500" : "bg-gray-300"
+                  )}
+                />
+                <span className="truncate">{headerStatusLabel}</span>
+              </span>
             )}
-            <div className="min-w-0">
-              <h2 className="font-bold text-slate-900 truncate">{headerTitle}</h2>
-              {headerStatusLabel && (
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
-                  <span
-                    className={cn(
-                      "inline-block h-2.5 w-2.5 rounded-full shrink-0",
-                      headerStatusLabel === "Online" ? "bg-green-500" : "bg-slate-400"
-                    )}
-                  />
-                  <span
-                    className={cn(
-                      "truncate",
-                      headerStatusLabel === "Online" ? "text-green-600" : "text-slate-500"
-                    )}
-                  >
-                    {headerStatusLabel}
-                  </span>
-                </div>
-              )}
-            </div>
           </div>
           <div className="flex items-center gap-2">
             {isSearchOpen && (
@@ -484,7 +541,8 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search messages..."
-                className="w-48 sm:w-64 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 outline-none focus:ring-2 focus:ring-indigo-200"
+                className="w-40 sm:w-56 border-b border-gray-200 bg-transparent px-1 py-1 text-sm text-gray-700 outline-none focus:border-gray-900"
+                autoFocus
               />
             )}
             <button
@@ -493,7 +551,7 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 if (isSearchOpen) setSearchQuery("");
                 setIsSearchOpen((prev) => !prev);
               }}
-              className="text-slate-400 hover:text-slate-600 cursor-pointer p-1 rounded-md hover:bg-slate-100 transition-colors"
+              className="text-gray-400 hover:text-gray-900 cursor-pointer p-1 transition-colors"
               aria-label={isSearchOpen ? "Close search" : "Open search"}
             >
               {isSearchOpen ? <X size={18} /> : <Search size={18} />}
@@ -501,9 +559,9 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 bg-indigo-50/50">
+        <div className="flex-1 overflow-y-auto py-4">
           {!activeChannelId ? (
-            <p className="text-center text-sm text-slate-500 py-12">
+            <p className="text-center text-sm text-gray-400 py-12">
               Select a project channel or direct message to start chatting.
             </p>
           ) : (
@@ -518,164 +576,126 @@ export const Chat: React.FC<ChatProps> = ({ preferredChannelId = null }) => {
                 new Date(msg.createdAt).getTime() - new Date(prevMsg.createdAt).getTime() < 300000;
 
               return (
-                <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
-                  <div
-                    className={cn(
-                      "flex max-w-[min(100%,42rem)] gap-3",
-                      isMe ? "flex-row-reverse" : "flex-row"
-                    )}
-                  >
-                    {!isMe && !isGrouped && (
+                <div
+                  key={msg.id}
+                  className={cn(
+                    "group relative flex gap-3 px-5 hover:bg-gray-50 transition-colors",
+                    isGrouped ? "py-0.5" : "pt-3 pb-0.5"
+                  )}
+                >
+                  <div className="w-8 shrink-0">
+                    {!isGrouped ? (
                       <img
                         src={author?.avatar}
-                        className="h-10 w-10 shrink-0 rounded-full border-2 border-white object-cover shadow-md"
+                        className="h-8 w-8 rounded-full object-cover"
                         alt={author?.name}
                       />
+                    ) : (
+                      <span className="hidden group-hover:block text-[10px] text-gray-300 text-right pr-1 pt-1 leading-none">
+                        {format(new Date(msg.createdAt), "h:mm")}
+                      </span>
                     )}
-                    {!isMe && isGrouped && <div className="w-10 shrink-0" />}
+                  </div>
 
-                    <div className={cn("flex min-w-0 flex-col gap-1", isMe ? "items-end" : "items-start")}>
-                      {!isGrouped && (
-                        <div className="mb-1 flex items-baseline gap-2">
-                          <span className="text-xs font-black text-indigo-600">{author?.name}</span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            {format(new Date(msg.createdAt), "h:mm a")}
-                          </span>
-                        </div>
-                      )}
-                      <div
-                        className={cn(
-                          "group/bubble flex min-w-0 flex-col gap-1",
-                          isMe ? "items-end" : "items-start"
-                        )}
-                      >
-                        <div
+                  <div className="min-w-0 flex-1">
+                    {!isGrouped && (
+                      <div className="flex items-baseline gap-2">
+                        <span
                           className={cn(
-                            "flex items-end gap-2",
-                            isMe ? "flex-row-reverse" : "flex-row"
+                            "text-sm font-semibold",
+                            isMe ? "text-gray-900" : "text-gray-900"
                           )}
                         >
-                          <div
-                            className={cn(
-                              "max-w-full shrink-0 break-words px-5 py-3 text-sm font-medium shadow-sm sm:max-w-xl",
-                              isMe
-                                ? "rounded-[1.5rem] rounded-tr-none bg-indigo-600 text-white shadow-indigo-600/20"
-                                : "rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white text-slate-700"
-                            )}
-                          >
-                            {msg.content}
-                          </div>
-                          {reactionEntries.length > 0 && (
-                            <div
+                          {author?.name}
+                        </span>
+                        <span className="text-[11px] text-gray-400">
+                          {format(new Date(msg.createdAt), "h:mm a")}
+                        </span>
+                      </div>
+                    )}
+                    <div className="text-sm text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
+                      {msg.content}
+                    </div>
+
+                    {reactionEntries.length > 0 && (
+                      <div className="mt-1 flex flex-wrap items-center gap-1">
+                        {reactionEntries.map(([emoji, userIds]) => {
+                          const safeUserIds = userIds.filter((id) => Boolean(id));
+                          if (safeUserIds.length === 0) return null;
+                          const reactedByMe = safeUserIds.includes(currentUser.id);
+                          return (
+                            <button
+                              key={`${msg.id}-${emoji}`}
+                              type="button"
+                              onClick={() => void toggleMessageReaction(msg.id, emoji)}
                               className={cn(
-                                "flex shrink-0 flex-wrap items-center gap-1",
-                                isMe ? "justify-end" : "justify-start"
+                                "inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs transition-colors",
+                                reactedByMe
+                                  ? "bg-gray-900 text-white"
+                                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
                               )}
                             >
-                              {reactionEntries.map(([emoji, userIds]) => {
-                                const safeUserIds = userIds.filter((id) => Boolean(id));
-                                const reactedByMe = safeUserIds.includes(currentUser.id);
-                                return (
-                                  <button
-                                    key={`${msg.id}-${emoji}`}
-                                    type="button"
-                                    onClick={() => void toggleMessageReaction(msg.id, emoji)}
-                                    className={cn(
-                                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors",
-                                      reactedByMe
-                                        ? "border-indigo-300 bg-indigo-100 text-indigo-700"
-                                        : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                                    )}
-                                  >
-                                    <span>{emoji}</span>
-                                    <span>{safeUserIds.length}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        <div
-                          className={cn(
-                            "flex max-h-0 flex-wrap gap-1 overflow-hidden opacity-0 transition-all duration-150 pointer-events-none group-hover/bubble:max-h-24 group-hover/bubble:opacity-100 group-hover/bubble:pointer-events-auto group-focus-within/bubble:max-h-24 group-focus-within/bubble:opacity-100 group-focus-within/bubble:pointer-events-auto",
-                            isMe ? "justify-end" : "justify-start"
-                          )}
-                        >
-                          {QUICK_REACTIONS.map((emoji) => {
-                            const reactedBy = msg.reactions?.[emoji] ?? [];
-                            const reactedByMe = reactedBy.includes(currentUser.id);
-                            if (reactedByMe) return null;
-                            return (
-                              <button
-                                key={`${msg.id}-add-${emoji}`}
-                                type="button"
-                                onClick={() => void toggleMessageReaction(msg.id, emoji)}
-                                className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-500 transition-colors hover:bg-slate-50"
-                                aria-label={`React with ${emoji}`}
-                                title={`React with ${emoji}`}
-                              >
-                                {emoji}
-                              </button>
-                            );
-                          })}
-                        </div>
+                              <span>{emoji}</span>
+                              <span>{safeUserIds.length}</span>
+                            </button>
+                          );
+                        })}
                       </div>
-                    </div>
+                    )}
+                  </div>
+
+                  {/* Hover reaction picker */}
+                  <div className="absolute right-4 -top-3 hidden group-hover:flex items-center gap-0.5 rounded-lg border border-gray-100 bg-white px-1 py-0.5 shadow-sm">
+                    {QUICK_REACTIONS.map((emoji) => (
+                      <button
+                        key={`${msg.id}-add-${emoji}`}
+                        type="button"
+                        onClick={() => void toggleMessageReaction(msg.id, emoji)}
+                        className="rounded-md px-1 py-0.5 text-sm hover:bg-gray-100 transition-colors"
+                        aria-label={`React with ${emoji}`}
+                        title={`React with ${emoji}`}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
                   </div>
                 </div>
               );
             })
           )}
           {activeChannelId && filteredChannelMessages.length === 0 && (
-            <p className="text-center text-sm text-slate-500 py-12">
-              No messages match your search.
-            </p>
+            <p className="text-center text-sm text-gray-400 py-12">No messages match your search.</p>
           )}
           {typingLabel && (
-            <div className="flex w-full justify-start">
-              <div className="flex max-w-[min(100%,42rem)] gap-3">
-                <div className="w-10 shrink-0" />
-                <div className="rounded-[1.5rem] rounded-tl-none border border-slate-100 bg-white px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm">
-                  <span className="inline-flex items-center gap-1.5">
-                    <span>{typingLabel}</span>
-                    <span className="inline-flex items-center gap-0.5" aria-hidden="true">
-                      <span
-                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
-                        style={{ animationDelay: "0ms" }}
-                      />
-                      <span
-                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
-                        style={{ animationDelay: "150ms" }}
-                      />
-                      <span
-                        className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce"
-                        style={{ animationDelay: "300ms" }}
-                      />
-                    </span>
-                  </span>
-                </div>
-              </div>
+            <div className="flex items-center gap-2 px-5 pt-2 text-xs text-gray-400">
+              <span className="inline-flex items-center gap-0.5" aria-hidden="true">
+                <span className="h-1.5 w-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "0ms" }} />
+                <span className="h-1.5 w-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "150ms" }} />
+                <span className="h-1.5 w-1.5 rounded-full bg-gray-300 animate-bounce" style={{ animationDelay: "300ms" }} />
+              </span>
+              <span>{typingLabel}</span>
             </div>
           )}
           <div ref={endOfMessagesRef} />
         </div>
 
-        <div className="p-6 bg-white border-t border-indigo-50">
-          <form onSubmit={handleSend} className="relative">
+        <div className="px-5 py-4 border-t border-gray-100">
+          <form onSubmit={handleSend} className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 focus-within:border-gray-900 transition-colors">
             <input
               type="text"
               value={inputVal}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder={inputPlaceholder}
               disabled={!activeChannelId}
-              className="w-full pl-6 pr-14 py-4 bg-indigo-50 border-none focus:ring-2 focus:ring-indigo-200 rounded-full outline-none transition-all shadow-inner text-sm font-medium disabled:opacity-50"
+              className="flex-1 bg-transparent py-3 text-sm outline-none disabled:opacity-50"
             />
             <button
               type="submit"
               disabled={!inputVal.trim() || !activeChannelId}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="p-1.5 text-gray-400 hover:text-gray-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              aria-label="Send message"
             >
-              <Send size={16} />
+              <Send size={18} />
             </button>
           </form>
         </div>

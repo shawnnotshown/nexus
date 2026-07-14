@@ -32,23 +32,23 @@ export const Calendar: React.FC = () => {
     <div className="flex flex-col h-full space-y-6">
       <div className="flex justify-between items-end flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-black text-indigo-900 tracking-tight">Calendar</h1>
-          <p className="text-slate-500 mt-1 font-medium">Keep track of your deadlines.</p>
+          <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Calendar</h1>
+          <p className="text-gray-500 mt-1 font-medium">Keep track of your deadlines.</p>
         </div>
         <div className="flex items-center gap-3">
-          <button onClick={goToToday} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 shadow-sm transition-colors">Today</button>
-          <div className="flex items-center bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-            <button onClick={prevMonth} className="px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors"><ChevronLeft size={18} className="stroke-[3px]" /></button>
-            <div className="px-4 font-black text-slate-700 min-w-[140px] text-center">{format(currentDate, "MMMM yyyy")}</div>
-            <button onClick={nextMonth} className="px-3 py-2 text-slate-500 hover:bg-slate-50 hover:text-indigo-600 transition-colors"><ChevronRight size={18} className="stroke-[3px]" /></button>
+          <button onClick={goToToday} className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-50 shadow-sm transition-colors">Today</button>
+          <div className="flex items-center bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+            <button onClick={prevMonth} className="px-3 py-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 transition-colors"><ChevronLeft size={18} className="stroke-[3px]" /></button>
+            <div className="px-4 font-bold text-gray-700 min-w-[140px] text-center">{format(currentDate, "MMMM yyyy")}</div>
+            <button onClick={nextMonth} className="px-3 py-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 transition-colors"><ChevronRight size={18} className="stroke-[3px]" /></button>
           </div>
         </div>
       </div>
 
-      <div className="flex-1 bg-white rounded-3xl border border-slate-100 shadow-xl shadow-indigo-50/50 flex flex-col overflow-hidden">
-        <div className="grid grid-cols-7 border-b border-slate-100">
+      <div className="flex-1 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-gray-100">
           {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-            <div key={day} className="py-4 text-center text-xs font-black uppercase tracking-widest text-slate-400">
+            <div key={day} className="py-4 text-center text-xs font-semibold uppercase tracking-wider text-gray-400">
               {day}
             </div>
           ))}
@@ -62,18 +62,18 @@ export const Calendar: React.FC = () => {
             return (
               <div 
                 key={day.toString()} 
-                className={`min-h-[100px] border-b border-r border-slate-100 p-2 sm:p-3 transition-colors ${
-                  !isSameMonth(day, currentDate) ? 'bg-slate-50/50 opacity-50' : ''
+                className={`min-h-[100px] border-b border-r border-gray-100 p-2 sm:p-3 transition-colors ${
+                  !isSameMonth(day, currentDate) ? 'bg-gray-50/50 opacity-50' : ''
                 } ${idx % 7 === 6 ? 'border-r-0' : ''}`}
               >
                 <div className="flex justify-between items-start mb-2">
                   <span className={`w-7 h-7 flex items-center justify-center rounded-full text-sm font-bold ${
-                    isToday(day) ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'text-slate-600'
+                    isToday(day) ? 'bg-blue-600 text-white' : 'text-gray-600'
                   }`}>
                     {format(day, "d")}
                   </span>
                   {dayItemCount > 0 && (
-                     <span className="text-[10px] font-bold text-slate-400 under hidden sm:inline-block">{dayItemCount} item{dayItemCount === 1 ? "" : "s"}</span>
+                     <span className="text-[10px] font-semibold text-gray-400 under hidden sm:inline-block">{dayItemCount} item{dayItemCount === 1 ? "" : "s"}</span>
                   )}
                 </div>
                 
@@ -81,8 +81,8 @@ export const Calendar: React.FC = () => {
                   {dayScheduleEvents.map(({ projectId, event }) => {
                     const project = projects.find(p => p.id === projectId);
                     return (
-                      <div key={`event-${projectId}-${event.id}`} className="text-[10px] sm:text-xs leading-tight font-semibold bg-rose-50 text-rose-700 px-2 py-1.5 rounded-lg truncate shadow-sm cursor-pointer hover:bg-rose-100 transition-colors" title={`${event.title} at ${format(new Date(event.eventDate), "h:mm a")} - ${project?.name}`}>
-                        <span className="hidden sm:inline opacity-75 mr-1 font-bold">{project?.name.substring(0, 3)}:</span>
+                      <div key={`event-${projectId}-${event.id}`} className="text-[10px] sm:text-xs leading-tight font-semibold bg-emerald-50 text-emerald-700 px-2 py-1.5 rounded-lg truncate cursor-pointer hover:bg-emerald-100 transition-colors" title={`${event.title} at ${format(new Date(event.eventDate), "h:mm a")} - ${project?.name}`}>
+                        <span className="hidden sm:inline opacity-75 mr-1 font-semibold">{project?.name.substring(0, 3)}:</span>
                         <span className="opacity-75 mr-1">{format(new Date(event.eventDate), "h:mm a")}</span>
                         {event.title}
                       </div>
@@ -91,8 +91,8 @@ export const Calendar: React.FC = () => {
                   {dayTasks.map(task => {
                     const project = projects.find(p => p.id === task.projectId);
                     return (
-                      <div key={task.id} className="text-[10px] sm:text-xs leading-tight font-semibold bg-indigo-50 text-indigo-700 px-2 py-1.5 rounded-lg truncate shadow-sm cursor-pointer hover:bg-indigo-100 transition-colors" title={`${task.title} - ${project?.name}`}>
-                        <span className="hidden sm:inline opacity-75 mr-1 font-bold">{project?.name.substring(0, 3)}:</span>
+                      <div key={task.id} className="text-[10px] sm:text-xs leading-tight font-semibold bg-blue-50 text-blue-700 px-2 py-1.5 rounded-lg truncate cursor-pointer hover:bg-blue-100 transition-colors" title={`${task.title} - ${project?.name}`}>
+                        <span className="hidden sm:inline opacity-75 mr-1 font-semibold">{project?.name.substring(0, 3)}:</span>
                         {task.title}
                       </div>
                     )

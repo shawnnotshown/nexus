@@ -25,7 +25,7 @@ export const WorkProgressBar: React.FC<Props> = ({
           className={`h-2 w-full ${trackClassName} rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(15,23,42,0.12)]`}
         >
           <div
-            className="h-full bg-indigo-500 rounded-full transition-[width] duration-300"
+            className="h-full bg-blue-600 rounded-full transition-[width] duration-300"
             style={{ width: `${p}%` }}
           />
         </div>
